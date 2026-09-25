@@ -1,0 +1,6 @@
+# Normalise text files in the repository; the build output is generated but
+# committed (installing straight from GitHub must work without a build step).
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
