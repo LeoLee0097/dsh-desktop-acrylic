@@ -47,6 +47,8 @@ window.__ModuleLoader__.load({
 		const PANEL_SELECTORS = /*__PANEL_SELECTORS__*/ [];
 		/** Attribute that arms the frosted panel (from src/theme.mjs). */
 		const PANEL_ATTRIBUTE = /*__PANEL_ATTRIBUTE__*/ "data-dwa-panel";
+		/** Static-dialog fallback: the blur sits on the element itself. */
+		const PANEL_FLAT_ATTRIBUTE = /*__PANEL_FLAT_ATTRIBUTE__*/ "data-dwa-panel-flat";
 		/** Theme applied when the user has not chosen yet. */
 		const DEFAULT_SKIN = /*__DEFAULT_SKIN__*/ "tokyo-night";
 		/** Sentinel for "follow the shell's built-in appearance". */
@@ -179,6 +181,8 @@ window.__ModuleLoader__.load({
 		let frostTargets = [];
 		/** Diagnostics: how many candidates matched, armed, or were skipped. */
 		let blurHostStats = { matched: 0, armed: 0, skipped: 0 };
+		/** Why each dialog was armed or skipped, for diagnostics (short list). */
+		let panelDebug = [];
 		/** Which catalog the font dropdowns use, and how many families it holds. */
 		let fontSource = "builtin";
 		let fontCount = 0;
@@ -234,7 +238,7 @@ window.__ModuleLoader__.load({
 		/** Drop every attribute we may have set (blur layer and frost texture). */
 		function disarmBlurHosts() {
 			try {
-				const nodes = document.querySelectorAll(`[${HOST_ATTRIBUTE}], [${FROST_ATTRIBUTE}], [${PANEL_ATTRIBUTE}]`);
+				const nodes = document.querySelectorAll(`[${HOST_ATTRIBUTE}], [${FROST_ATTRIBUTE}], [${PANEL_ATTRIBUTE}], [${PANEL_FLAT_ATTRIBUTE}]`);
 				for (const node of Array.prototype.slice.call(nodes)) {
 					node.removeAttribute(HOST_ATTRIBUTE);
 					node.removeAttribute(FROST_ATTRIBUTE);
@@ -285,14 +289,22 @@ window.__ModuleLoader__.load({
 		 * Turn dialogs into frosted panels: the surface runs at 25% transparency
 		 * and carries a 30px backdrop blur.
 		 *
-		 * Only dialogs that are already positioned are armed — the blur lives on
-		 * an absolutely positioned `::before`, which needs a containing block. The
-		 * dialog's own `position` is never touched: that would re-anchor its
-		 * absolutely / fixed positioned children.
+		 * Two arming modes, because a dialog is not always positioned:
+		 *
+		 * - `positioned` (preferred): the blur lives on an absolutely positioned
+		 *   `::before`, so nothing about the dialog's own box changes.
+		 * - `flat` (fallback): the dialog is static, so the layer has no containing
+		 *   block to live in. The blur then goes on the element itself — safe here
+		 *   because a dialog is a leaf overlay, and it is skipped entirely when the
+		 *   dialog contains `position: fixed` descendants (those are the ones a
+		 *   filter would re-anchor).
+		 *
+		 * The dialog's own `position` is never modified in either mode.
 		 */
 		function armDialogPanels() {
 			let armed = 0;
 			frostTargets = [];
+			panelDebug = [];
 			let dialogs = [];
 			try {
 				dialogs = Array.prototype.slice.call(document.querySelectorAll(PANEL_SELECTORS.join(",")));
@@ -302,22 +314,55 @@ window.__ModuleLoader__.load({
 			for (const dialog of dialogs) {
 				let rect = null;
 				let positioned = false;
+				let fixedDescendants = -1;
 				try {
 					rect = dialog.getBoundingClientRect();
 					positioned = window.getComputedStyle(dialog).position !== "static";
+					let fixed = 0;
+					for (const node of Array.prototype.slice.call(dialog.querySelectorAll("*")).slice(0, 400)) {
+						if (window.getComputedStyle(node).position === "fixed") fixed += 1;
+					}
+					fixedDescendants = fixed;
 				} catch {
-					positioned = false;
+					// treat as unusable below
 				}
-				if (rect === null || rect.width < 200 || rect.height < 140) continue;
-				if (!positioned) {
-					dialog.removeAttribute(PANEL_ATTRIBUTE);
+				const size = rect === null ? "0x0" : `${Math.round(rect.width)}x${Math.round(rect.height)}`;
+				if (rect === null || rect.width < 200 || rect.height < 140) {
+					panelDebug.push(`${describeNode(dialog)} ${size} → skip(small)`);
 					continue;
 				}
-				dialog.setAttribute(PANEL_ATTRIBUTE, "");
+				if (positioned) {
+					dialog.removeAttribute(PANEL_FLAT_ATTRIBUTE);
+					dialog.setAttribute(PANEL_ATTRIBUTE, "");
+					armed += 1;
+					recordFrostTarget(dialog);
+					panelDebug.push(`${describeNode(dialog)} ${size} → positioned`);
+					continue;
+				}
+				if (fixedDescendants !== 0) {
+					dialog.removeAttribute(PANEL_ATTRIBUTE);
+					dialog.removeAttribute(PANEL_FLAT_ATTRIBUTE);
+					panelDebug.push(`${describeNode(dialog)} ${size} → skip(static, fixed=${fixedDescendants})`);
+					continue;
+				}
+				dialog.removeAttribute(PANEL_ATTRIBUTE);
+				dialog.setAttribute(PANEL_FLAT_ATTRIBUTE, "");
 				armed += 1;
 				recordFrostTarget(dialog);
+				panelDebug.push(`${describeNode(dialog)} ${size} → flat`);
 			}
 			return armed;
+		}
+
+		/** Short node label for diagnostics: `div.classname`. */
+		function describeNode(node) {
+			try {
+				const tag = String(node.tagName || "?").toLowerCase();
+				const cls = typeof node.className === "string" ? node.className.split(/\s+/)[0] || "" : "";
+				return cls.length > 0 ? `${tag}.${cls}` : tag;
+			} catch {
+				return "?";
+			}
 		}
 
 		/** Remember what was textured, for the status report (capped, short). */
@@ -578,6 +623,7 @@ window.__ModuleLoader__.load({
 						hostStats: blurHostStats,
 						frost: frostCount,
 						panels: panelsCount,
+						panelDebug: panelDebug.slice(0, 4),
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -884,7 +930,7 @@ window.__ModuleLoader__.load({
 					},
 					label
 				);
-			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0}`;
+			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
 			return react.createElement(
 				"div",
 				{ style: rowStyles.group },
@@ -964,7 +1010,7 @@ window.__ModuleLoader__.load({
 		/** Row mirror store; the theme/change listener is the only writer. */
 		function createRowStore() {
 			return _store.defineStore({
-				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, bgBase: "", revision: -1 }),
+				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
 				actions: {
 					sync: (d, payload) => {
 						if (typeof payload.revision !== "number" || payload.revision <= d.revision) return;
@@ -980,6 +1026,9 @@ window.__ModuleLoader__.load({
 								? Number(payload.hostStats.matched) || 0
 								: 0;
 						d.frost = typeof payload.frost === "number" ? payload.frost : 0;
+						d.panels = typeof payload.panels === "number" ? payload.panels : 0;
+						d.fontSource = typeof payload.fontSource === "string" ? payload.fontSource : "";
+						d.fontCount = typeof payload.fontCount === "number" ? payload.fontCount : 0;
 						d.bgBase = typeof payload.bgBase === "string" ? payload.bgBase : "";
 						d.revision = payload.revision;
 					}
@@ -1050,6 +1099,7 @@ window.__ModuleLoader__.load({
 						hostStats: blurHostStats,
 						frost: frostCount,
 						panels: panelsCount,
+						panelDebug: panelDebug.slice(0, 4),
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -1187,6 +1237,7 @@ window.__ModuleLoader__.load({
 		exports.MONO_FONT_BASES = MONO_FONT_BASES;
 		exports.MONO_FONT_SUFFIXES = MONO_FONT_SUFFIXES;
 		exports.PANEL_SELECTORS = PANEL_SELECTORS;
+		exports.PANEL_FLAT_ATTRIBUTE = PANEL_FLAT_ATTRIBUTE;
 		exports.PANEL_ATTRIBUTE = PANEL_ATTRIBUTE;
 		exports.DEFAULT_SKIN = DEFAULT_SKIN;
 		exports.NATIVE_SKIN = NATIVE_SKIN;

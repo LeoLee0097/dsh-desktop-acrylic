@@ -540,6 +540,12 @@ export const FROST_SELECTORS = [
 /** Attribute the runtime sets on dialogs that become frosted panels. */
 export const PANEL_ATTRIBUTE = 'data-dwa-panel'
 
+/**
+ * Attribute for static dialogs: the blur goes on the element itself, since a
+ * pseudo-element inside a static box has no containing block to sit in.
+ */
+export const PANEL_FLAT_ATTRIBUTE = 'data-dwa-panel-flat'
+
 /** Dialogs that qualify for the frosted-panel treatment. */
 export const PANEL_SELECTORS = ['[role="dialog"]', 'dialog']
 
@@ -568,6 +574,15 @@ export function buildPanelCss() {
     "  z-index: -1;",
     "  pointer-events: none;",
     "  border-radius: inherit;",
+    "  -webkit-backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
+    "  backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
+    "}",
+    // Fallback for a dialog that is not positioned: a `::before` would have no
+    // containing block, so the blur goes on the element itself. The runtime only
+    // takes this path when the dialog has no `position: fixed` descendants, i.e.
+    // nothing that a filter would re-anchor.
+    `${arm} [${PANEL_FLAT_ATTRIBUTE}] {`,
+    "  background-color: var(--dwa-panel-fill) !important;",
     "  -webkit-backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
     "  backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
     "}"
