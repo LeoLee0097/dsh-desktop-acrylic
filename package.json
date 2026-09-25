@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-acrylic",
-  "version": "0.6.0",
+  "version": "0.8.2",
   "description": "Tokyo Night dark and light themes for DSH Desktop, with acrylic chrome and global font options.",
   "license": "MIT",
   "author": "LeoLee0097",
@@ -34,7 +34,8 @@
     "docs"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "check:fonts": "node scripts/check-fonts.mjs"
   },
   "dsh": {
     "bundle": {

@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -48,6 +48,9 @@ const substitutions = [
   ['/*__FROST_ATTRIBUTE__*/ "data-dwa-frost"', JSON.stringify(FROST_ATTRIBUTE)],
   ['/*__PANEL_SELECTORS__*/ []', indent(JSON.stringify(PANEL_SELECTORS, null, 2), 2)],
   ['/*__PANEL_ATTRIBUTE__*/ "data-dwa-panel"', JSON.stringify(PANEL_ATTRIBUTE)],
+  ['/*__MONO_FONTS__*/ []', indent(JSON.stringify(MONO_FONTS, null, 2), 2)],
+  ['/*__MONO_FONT_BASES__*/ []', indent(JSON.stringify(MONO_FONT_BASES, null, 2), 2)],
+  ['/*__MONO_FONT_SUFFIXES__*/ []', indent(JSON.stringify(MONO_FONT_SUFFIXES, null, 2), 2)],
   ['/*__DEFAULT_SKIN__*/ "tokyo-night"', JSON.stringify(DEFAULT_SKIN)],
   ['/*__NATIVE_SKIN__*/ "system"', JSON.stringify(NATIVE_SKIN)]
 ]
@@ -57,7 +60,7 @@ for (const [marker, replacement] of substitutions) {
   if (!bundle.includes(marker)) throw new Error(`build: placeholder ${marker} not found in src/client.tpl.js`)
   bundle = bundle.replace(marker, replacement)
 }
-for (const marker of ['__SKINS__', '__ACRYLIC__', '__ACRYLIC_ENABLED__', '__BASE_CSS__', '__CHROME_CSS__', '__HOST_SELECTORS__', '__HOST_ATTRIBUTE__', '__FROST_SELECTORS__', '__FROST_ATTRIBUTE__', '__PANEL_SELECTORS__', '__PANEL_ATTRIBUTE__', '__DEFAULT_SKIN__', '__NATIVE_SKIN__']) {
+for (const marker of ['__SKINS__', '__ACRYLIC__', '__ACRYLIC_ENABLED__', '__BASE_CSS__', '__CHROME_CSS__', '__HOST_SELECTORS__', '__HOST_ATTRIBUTE__', '__FROST_SELECTORS__', '__FROST_ATTRIBUTE__', '__PANEL_SELECTORS__', '__PANEL_ATTRIBUTE__', '__MONO_FONTS__', '__MONO_FONT_BASES__', '__MONO_FONT_SUFFIXES__', '__DEFAULT_SKIN__', '__NATIVE_SKIN__']) {
   if (bundle.includes(`/*${marker}*/`)) throw new Error(`build: placeholder ${marker} survived substitution`)
 }
 
@@ -124,6 +127,12 @@ if (ACRYLIC_ENABLED) {
   if (!Number.isFinite(Number(captured.SKINS[0].tokens['--dwa-panel-blur'].replace('px', '')))) {
     throw new Error('build: panel blur token is not a pixel value')
   }
+  if (!Array.isArray(captured.MONO_FONT_BASES) || captured.MONO_FONT_BASES.length < 20) {
+    throw new Error('build: font probe catalog missing from the bundle')
+  }
+  if (!Array.isArray(captured.MONO_FONTS) || captured.MONO_FONTS.length < 5) {
+    throw new Error('build: monospace font catalog missing from the bundle')
+  }
   if (!Array.isArray(captured.HOST_SELECTORS) || captured.HOST_SELECTORS.length === 0) {
     throw new Error('build: host selector list is empty')
   }
@@ -145,6 +154,8 @@ const VALUE_PATTERNS = [
   /^color-mix\(in srgb,[^;{}]*\)$/i,
   /^blur\([0-9.]+px\) saturate\([0-9.]+\)$/,
   /^[0-9.]+px$/,
+  // Bridge tokens may reference our own alias tokens; anything else is rejected.
+  /^var\(--dsw-[a-z0-9-]+\)$/,
   /^transparent$/
 ]
 
@@ -152,7 +163,10 @@ const badTokens = []
 for (const skin of SKINS) {
   for (const [token, value] of Object.entries(skin.tokens)) {
     const text = String(value)
-    const ok = text.length > 0 && !/[;{}]/.test(text) && !text.includes('var(') && VALUE_PATTERNS.some((re) => re.test(text))
+    // A `var()` is only acceptable when it points at one of our own alias
+    // tokens: a dangling reference would invalidate the whole inline block.
+    const varOk = !text.includes('var(') || /^var\(--dsw-[a-z0-9-]+\)$/.test(text)
+    const ok = text.length > 0 && !/[;{}]/.test(text) && varOk && VALUE_PATTERNS.some((re) => re.test(text))
     if (!ok) badTokens.push(`${skin.id} ${token} = ${text}`)
   }
 }

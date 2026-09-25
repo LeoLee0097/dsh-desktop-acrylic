@@ -1,7 +1,7 @@
 # dsh-desktop-acrylic
 
 Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) Desktop —
-两套主题（暗色 / 亮色）、磨砂面板与全局字体选项。
+两套主题（暗色 / 亮色）、磨砂面板、等宽字体选择。
 
 两套皮肤都是**注册进内置主题运行时的真实主题**（`ctx.theme.register`），因此切换主题就是切换
 运行时偏好本身，不依赖属性开关或事后 CSS 覆盖。
@@ -12,17 +12,19 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 | 能力 | 实现方式 | 参数 |
 | --- | --- | --- |
-| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 157 个 token | 暗色底 `#1a1b26`，亮色底 `#e1e2e7` |
+| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 180 个 token | 暗色底 `#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
 | 图标随主题变色 | 桌面端用 `currentColor` 绘制图标且没有图标专属 token，因此图标自动跟随 `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | 无需额外配置 |
-| 画布透明度 | 背景族 token 带 alpha | 暗色 `0.10`（90% 透明）；亮色 `0.90`（保证深色文字可读） |
-| 材质底层 | 用 Tokyo Night 自身的蓝/紫/青做的柔和渐变色场，固定在最底层并预模糊 | 强度 30%，`blur(28px)` |
+| 画布透明度 | 背景族 token 带 alpha | 暗色 `0.10`（90% 透明）；亮色 `0.30` |
+| 材质底层 | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊 | 强度 暗 30% / 亮 24%，`blur(28px)` |
 | 弹出菜单 / 下拉 / 浮层 | 皮肤下发 `--dsw-menu-backdrop-filter`，由桌面端自带材质通路渲染 | `blur(24px) saturate(1.15)` |
-| 对话框（设置窗口等） | 磨砂面板：`isolation` + 绝对定位 `::before` 承载模糊，面板本身不加滤镜 | 底色 `rgba(22,22,30,0.75)`（25% 透明）+ `blur(30px)` |
-| 工作区主侧栏 | 静态磨砂纹理（渐变光泽 + 细噪点 + 内高光，均为 `background-image`） | 光泽 7%、噪点 9% / 3px |
-| 全局字体 | 设置行输入界面字体 / 代码字体，写入 `--dsw-font-family`、`--ds-font-family-code` | 留空即用默认字体栈 |
+| 对话框（设置窗口等） | 磨砂面板：`isolation` + 绝对定位 `::before` 承载模糊，面板本身不加滤镜 | 底色 `rgba(…, 0.75)`（25% 透明）+ `blur(30px)` |
+| 工作区主侧栏 | 均匀颗粒纹理（纯 `background-image`，无方向性、无边缘） | 暗色 6% / 亮色 14%（明暗感知不对称，故分开设值） |
+| 卡片与表格（genui） | 把卡片库自带的 `--tv-*` 调色板桥接到我们的别名 token | 22 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框 |
+| 原生控件 | `color-scheme` 随主题切换 | 滚动条、复选框等原生部件一并跟随 |
+| 字体 | 两个可搜索下拉（界面字体 / 代码字体），列出**本机可用的等宽字体**（含 NF / PL 变体） | 见下文「字体探测」 |
 
-以上分别由 `src/theme.mjs` 的 `ACRYLIC`（模糊半径等）与 `SURFACES` / `buildPanelCss`（面板参数）
-集中定义；token 由皮肤统一下发，样式规则由构建脚本生成。
+集中定义：`src/theme.mjs` 的 `ACRYLIC`（模糊半径等）、`surfaceTable`（表面与 alpha）、
+`MONO_FONTS` / `MONO_FONT_BASES` / `MONO_FONT_SUFFIXES`（字体数据）；样式规则由构建脚本生成。
 
 ---
 
@@ -36,7 +38,11 @@ dsh plugin --profile desktop add github:LeoLee0097/dsh-desktop-acrylic
 dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 ```
 
-安装后完全退出并重启 DSH Desktop。此后单独重载渲染进程也会重新拉取客户端包。
+安装后**完全退出并重启** DSH Desktop。此后单独重载渲染进程也会重新拉取客户端包。
+
+> 注意：**宿主半边（`lib/index.js`）的改动只有重启进程才会生效**，因为它的路由表在进程启动时
+> 注册。客户端半边（`lib/client.js`）与数据表只需重载渲染进程。这一区别曾经导致过
+> 「明明改了却 404」的误判，故明确写在这里。
 
 ## 使用
 
@@ -44,24 +50,41 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 
 - **主题**：暗色 / 亮色 / 默认 —— 点击即时切换；
 - **亚克力**：模糊已开 / 模糊已关 —— 关掉只去模糊、保留主题；
-- **界面字体 / 代码字体**：填写后立即生效，留空恢复默认；
+- **界面字体 / 代码字体**：同一个可搜索下拉，选中即生效，可「恢复默认」；
 - **诊断行**：`当前偏好 · bg-base 计算值 · chrome on/off · hosts 已挂载/候选 · frost n · panels n`。
 
 `bg-base` 取自 `getComputedStyle(document.body)`，是浏览器实际解析出的值——用来确认主题真的
 落到了级联上，而不是「看起来没变化」。
 
----
+### 字体探测
+
+浏览器**不允许**枚举系统已安装字体，因此字体列表由两条路合并而成：
+
+1. **渲染进程探测**（总是可用）：候选名字来自 `MONO_FONT_BASES` × `MONO_FONT_SUFFIXES`
+   （42 基名 × 6 后缀 = 252 个探测名，后缀含 `NF` / `NFM` / `Nerd Font` / `Nerd Font Mono` / `PL`）。
+   用 canvas 测量候选字体与三个 fallback 下的同一段文本宽度，任一不同即判定存在。
+2. **宿主目录扫描**（路由可用时）：读取系统字体目录，解析字体文件的 `name` 表（族名）与
+   `post` 表的 `isFixedPitch`（格式自带的等宽标志），因此能发现候选表之外的族（含 CJK 等宽）。
+
+两者取并集。诊断字段 `fontSource` 会如实报告 `probe` / `host` / `host+probe`，`fontCount` 是条目数。
+
+```sh
+node scripts/check-fonts.mjs          # 打印宿主扫描结果（等宽清单）
+node scripts/check-fonts.mjs --all    # 另外打印全部族名
+```
 
 ## 项目结构
 
 ```
 dsh-desktop-acrylic/
 ├── src/
-│   ├── theme.mjs          # 调色板、两套皮肤、面板/纹理/字体 CSS（手写，规范来源）
+│   ├── theme.mjs          # 调色板、两套皮肤、面板/纹理/字体/桥接 CSS（手写，规范来源）
 │   └── client.tpl.js      # 浏览器半边模板（手写）
-├── scripts/build.mjs      # 构建 + 自检 → 产出下面两项
+├── scripts/
+│   ├── build.mjs          # 构建 + 自检 → 产出下面两项
+│   └── check-fonts.mjs    # 本机字体扫描的调试工具
 ├── lib/
-│   ├── index.js           # 宿主半边：/dark-acrylic/state 路由（持久开关 + 状态上报）
+│   ├── index.js           # 宿主半边：状态路由 + 本机字体路由
 │   └── client.js          # 浏览器半边（GENERATED，勿手改）
 ├── themes/
 │   ├── tokyo-night.json
@@ -69,8 +92,7 @@ dsh-desktop-acrylic/
 ├── docs/desktop-window-material.md
 ├── cordis.patch.yml       # profile 补丁层：insert 一个 loader 条目
 ├── package.json           # dsh.bundle.patch + dsh.client.inject 两处声明
-├── LICENSE / .gitignore / .gitattributes
-└── README.md
+└── LICENSE / README.md / .gitignore / .gitattributes
 ```
 
 ```sh
@@ -80,18 +102,19 @@ node scripts/build.mjs     # 或 npm run build
 构建脚本在写盘前做四类自检，任一条不通过就直接失败：
 
 1. **占位符**全部被替换，且无残留；
-2. **皮肤**数量 / id / 配色方案、默认主题与语言字典一致；
+2. **皮肤**数量 / id / 配色方案、默认主题与语言字典一致；字体数据表非空；
 3. **token 取值**必须符合保守语法（`#hex`、`rgb(a)`、`color-mix`、`blur(..) saturate(..)`、
-   `透明` 或 `<n>px`，且不含 `var(` 与分号花括号）——一个坏值足以摧毁整块内联样式；
-4. **CSS 安全**：模糊必须挂在 `::before` 图层上、面板必须带不透明底色 token，且没有任何规则
+   `transparent`、`<n>px`，或指向自身别名 token 的 `var(--dsw-…)`），且不含分号花括号；
+4. **CSS 安全**：模糊必须挂在 `::before` 图层上、磨砂面板必须带不透明底色 token，且没有任何规则
    给布局容器本体加滤镜或定位。
 
 ## 诊断
 
-插件会把运行实况上报给宿主路由，写入 `~/.dsh/dark-acrylic-state.json`：
+插件把运行实况上报给宿主路由，写入 `~/.dsh/dark-acrylic-state.json`：
 
 ```sh
-curl http://127.0.0.1:<端口>/dark-acrylic/state
+curl http://127.0.0.1:<端口>/dark-acrylic/state     # 状态与上报
+curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（host 扫描）
 ```
 
 ```json
@@ -106,6 +129,8 @@ curl http://127.0.0.1:<端口>/dark-acrylic/state
   "hostStats": { "matched": 23, "armed": 0, "skipped": 23 },
   "frost": 1,
   "panels": 1,
+  "fontSource": "probe",
+  "fontCount": 18,
   "computed": {
     "bgBase": "rgba(22, 22, 30, 0.1)",
     "sidebar": "rgba(15, 16, 23, 0.1)",
@@ -116,10 +141,10 @@ curl http://127.0.0.1:<端口>/dark-acrylic/state
 }
 ```
 
-`hosts` 与 `hostStats` 用来解释「为什么某处没有磨砂」：`matched` 是候选容器数，`armed` 是成功
+`hosts` / `hostStats` 用来解释「为什么某处没有磨砂」：`matched` 是候选容器数，`armed` 是成功
 挂上模糊层的数量——布局列普遍是静态元素，被守卫拒绝是正常结果。
 
-## 踩过的坑（都写进了构建自检）
+## 踩过的坑（都写进了构建自检或注释）
 
 1. **不要给布局容器本体加 `backdrop-filter`**：它会让元素成为 `position: fixed` 后代的包含块，
    而桌面端把侧栏开关、新建会话按钮正是这样钉在标题栏上的——结果就是控件重新锚定、直接消失。
@@ -132,6 +157,12 @@ curl http://127.0.0.1:<端口>/dark-acrylic/state
    以及 `inject(actions)` 的返回值——props 上没有环境里的主题服务。
 5. **「透」与「磨砂」是两件事**：透明来自 alpha，磨砂来自对背后内容的卷积；背后必须存在
    可被卷积的纹理，否则调大半径也看不出变化——材质底层就是为此存在的。
+6. **原生控件的样式与滚动不受页面控制**：`<select>` 的弹出列表是系统级窗口，只能靠
+   `color-scheme` 间接影响，长列表的滚轮行为也不可靠；需要可控的下拉就得自绘。
+7. **方向性纹理只作用于一列时就是接缝**：给侧栏单独加「顶光 + 内高光」会在列的上边缘造出一条
+   亮线；要连续就用无方向的均匀颗粒。
+8. **明暗感知不对称**：同一份颗粒强度，浅色颗粒叠深底很明显，深色颗粒叠浅底几乎看不见，
+   所以两套主题的同名参数不能共用一个数值。
 
 ## 已知边界
 
@@ -144,8 +175,12 @@ curl http://127.0.0.1:<端口>/dark-acrylic/state
 
 ## 变更记录
 
-- **0.6.0** — 对话框（设置窗口）改为真正的磨砂面板：25% 透明底色 + 30px 模糊，用绝对定位
-  `::before` 承载滤镜；移除对话框内的静态纹理逻辑。新增 `panels` 诊断。
+- **0.8.x** — 字体：改为列出本机可用的等宽字体（渲染进程探测 + 宿主目录扫描，含 NF / PL 变体）；
+  自绘可搜索下拉替代原生 select（原生弹层滚不动）；卡片与表格桥接 tiny-vue 调色板；
+  原生控件 `color-scheme` 随主题。
+- **0.7.x** — 字体输入框 → 下拉菜单（仅等宽）；宿主新增 `/dark-acrylic/fonts` 路由。
+- **0.6.x** — 亮色盘整体提亮、降饱和、文字加深；侧栏与画布同源消除竖向色差；颗粒改为无方向均匀纹理
+  并按主题分设强度；对话框改为真正的磨砂面板（25% 透明 + 30px 模糊）。
 - **0.5.x** — 静态磨砂纹理（供无法模糊的侧栏使用）、对话框几何判定试验与相应收紧、
   `frost` / `frostTargets` 诊断。
 - **0.4.x** — 材质底层（柔和色场）解决「没有东西可模糊」；色场强度与预模糊调优；

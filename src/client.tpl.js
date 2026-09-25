@@ -51,6 +51,11 @@ window.__ModuleLoader__.load({
 		const DEFAULT_SKIN = /*__DEFAULT_SKIN__*/ "tokyo-night";
 		/** Sentinel for "follow the shell's built-in appearance". */
 		const NATIVE_SKIN = /*__NATIVE_SKIN__*/ "system";
+		/** Monospace families for the font dropdowns (from src/theme.mjs). */
+		const MONO_FONTS = /*__MONO_FONTS__*/ [];
+		/** Probe catalog: bases × patched suffixes (from src/theme.mjs). */
+		const MONO_FONT_BASES = /*__MONO_FONT_BASES__*/ [];
+		const MONO_FONT_SUFFIXES = /*__MONO_FONT_SUFFIXES__*/ [];
 		//#endregion
 
 		//#region tokyo-night: configuration
@@ -64,6 +69,8 @@ window.__ModuleLoader__.load({
 		const SETTINGS_NS = "settings.tokyo-night";
 		/** Host route: durable state + status report. */
 		const STATE_ROUTE = "/dark-acrylic/state";
+		/** Host route: families actually installed on this machine. */
+		const FONTS_ROUTE = "/dark-acrylic/fonts";
 		/** Boot-time re-assert delay (other theme plugins restore first). */
 		const REASSERT_DELAY_MS = 800;
 		/** Debounce for status reports. */
@@ -172,6 +179,9 @@ window.__ModuleLoader__.load({
 		let frostTargets = [];
 		/** Diagnostics: how many candidates matched, armed, or were skipped. */
 		let blurHostStats = { matched: 0, armed: 0, skipped: 0 };
+		/** Which catalog the font dropdowns use, and how many families it holds. */
+		let fontSource = "builtin";
+		let fontCount = 0;
 
 		/**
 		 * Arm the blur layer, element by element.
@@ -236,8 +246,8 @@ window.__ModuleLoader__.load({
 			blurHostStats = { matched: 0, armed: 0, skipped: 0 };
 			frostCount = 0;
 			panelsCount = 0;
+			fontCount = fontSource === "host" ? fontCount : MONO_FONTS.length;
 		}
-
 		/**
 		 * Arm the imitation frost.
 		 *
@@ -389,6 +399,92 @@ window.__ModuleLoader__.load({
 		const durable = { chosen: null, font: null, codeFont: null, acrylic: null };
 		const INSTANCE_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
+		/**
+		 * Which of `candidates` this machine actually has.
+		 *
+		 * Chromium will not enumerate installed fonts, but it does report a
+		 * different metrics result for a family that exists than for one that
+		 * silently fell through to the fallback — measured against three
+		 * fallbacks so a family that merely matches one of them is not accepted.
+		 */
+		function detectLocalFonts(candidates) {
+			let ctx = null;
+			try {
+				ctx = document.createElement("canvas").getContext("2d");
+			} catch {
+				ctx = null;
+			}
+			if (ctx === null) return [];
+			const probe = "mmmmmmmmmmlliWWWW";
+			const fallbacks = ["monospace", "serif", "sans-serif"];
+			const baseline = fallbacks.map((fallback) => {
+				ctx.font = `72px ${fallback}`;
+				return ctx.measureText(probe).width;
+			});
+			const available = [];
+			for (const family of candidates) {
+				for (let i = 0; i < fallbacks.length; i += 1) {
+					ctx.font = `72px "${family}", ${fallbacks[i]}`;
+					if (ctx.measureText(probe).width !== baseline[i]) {
+						available.push(family);
+						break;
+					}
+				}
+			}
+			return available;
+		}
+
+		/**
+		 * Families installed on this machine.
+		 *
+		 * Two independent sources, because neither is sufficient alone:
+		 *
+		 * 1. Renderer probing (always available): the candidate bases crossed with
+		 *    the Nerd Font / Powerline suffixes, so patched builds are found under
+		 *    their real names. It can only find names it knows about.
+		 * 2. The host scan (when the running app exposes the route): it reads the
+		 *    font directories and classifies by `post.isFixedPitch`, so it finds
+		 *    faces the catalog never guessed — including CJK monospace families.
+		 *
+		 * The union is used; a missing host route simply means a shorter list.
+		 */
+		async function loadSystemFonts() {
+			const candidates = [];
+			for (const base of MONO_FONT_BASES) {
+				for (const suffix of MONO_FONT_SUFFIXES) candidates.push(`${base}${suffix}`);
+			}
+			const probed = detectLocalFonts(candidates);
+			let hosted = [];
+			try {
+				const response = await fetch(FONTS_ROUTE);
+				if (response.ok) {
+					const payload = await response.json();
+					if (payload !== null && typeof payload === "object") {
+						const monospace = Array.isArray(payload.monospace) ? payload.monospace : [];
+						const all = Array.isArray(payload.all) ? payload.all : [];
+						const patched = all.filter((family) => /nerd|\bnf\b|\bpl\b|powerline|glyph/i.test(String(family)));
+						hosted = monospace.concat(patched);
+					}
+				}
+			} catch {
+				hosted = [];
+			}
+			const merged = Array.from(
+				new Set(probed.concat(hosted).map((f) => String(f).trim()).filter(Boolean))
+			);
+			if (merged.length === 0) return null;
+			fontSource = hosted.length > 0 ? (probed.length > 0 ? "host+probe" : "host") : "probe";
+			fontCount = merged.length;
+			// Code-style faces first: CJK fonts also report fixed pitch and would
+			// otherwise crowd out the ones a developer actually wants.
+			const codeish = /code|mono|console|cascadia|jetbrains|fira|hack|inconsolata|menlo|courier|source|plex|roboto|ubuntu|dejavu|liberation|sarasa|maple|lxgw|terminus|iosevka/i;
+			return merged.sort((a, b) => {
+				const aCode = codeish.test(a) ? 0 : 1;
+				const bCode = codeish.test(b) ? 0 : 1;
+				return aCode === bCode ? a.localeCompare(b) : aCode - bCode;
+			});
+		}
+
 		/** Whether the blur layer is wanted: durable file → localStorage → on. */
 		function readAcrylic() {
 			if (typeof durable.acrylic === "boolean") return durable.acrylic;
@@ -482,6 +578,8 @@ window.__ModuleLoader__.load({
 						hostStats: blurHostStats,
 						frost: frostCount,
 						panels: panelsCount,
+						fontSource: fontSource,
+						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
 						computed: readComputedSurfaces(),
 						instance: INSTANCE_ID,
@@ -507,10 +605,10 @@ window.__ModuleLoader__.load({
 			"row.acrylicOn": "模糊已开",
 			"row.acrylicOff": "模糊已关",
 			"row.font": "界面字体",
-			"row.fontPlaceholder": "留空用默认字体，例如：Inter, PingFang SC",
+			"row.fontDefault": "跟随默认（系统字体）",
 			"row.codeFont": "代码字体",
-			"row.codeFontPlaceholder": "例如：JetBrains Mono, Consolas",
-			"row.apply": "应用字体",
+			"row.fontMonoHint": "下拉仅列出本机可用的等宽字体",
+			"row.fontSearch": "搜索字体…",
 			"row.clear": "恢复默认",
 			"row.diagnostics": "诊断"
 		};
@@ -527,10 +625,10 @@ window.__ModuleLoader__.load({
 			"row.acrylicOn": "blur on",
 			"row.acrylicOff": "blur off",
 			"row.font": "UI font",
-			"row.fontPlaceholder": "Empty = default stack, e.g. Inter, PingFang SC",
+			"row.fontDefault": "Follow the default (system) stack",
 			"row.codeFont": "Code font",
-			"row.codeFontPlaceholder": "e.g. JetBrains Mono, Consolas",
-			"row.apply": "Apply font",
+			"row.fontMonoHint": "Only monospace families installed on this machine",
+			"row.fontSearch": "Search fonts…",
 			"row.clear": "Reset",
 			"row.diagnostics": "Diagnostics"
 		};
@@ -562,7 +660,9 @@ window.__ModuleLoader__.load({
 				background: "var(--dsw-alias-interactive-bg-hover-accent)",
 				color: "var(--dsw-alias-label-primary)"
 			},
-			input: {
+
+			/** The picker's closed state: a button that looks like a field. */
+			select: {
 				border: "1px solid var(--dsw-alias-border-l2)",
 				borderRadius: "6px",
 				background: "transparent",
@@ -573,6 +673,45 @@ window.__ModuleLoader__.load({
 				padding: "3px 8px",
 				minWidth: "200px",
 				flex: "1"
+			},
+			/** Wrapper for the custom picker: anchors the fixed-position list. */
+			pickerWrap: { position: "relative", flex: "1", minWidth: "200px" },
+			list: {
+				position: "fixed",
+				zIndex: 9999,
+				maxHeight: "320px",
+				overflowY: "auto",
+				background: "var(--dwa-menu-solid, #1a1b26)",
+				color: "var(--dsw-alias-label-primary)",
+				border: "1px solid var(--dsw-alias-border-l2)",
+				borderRadius: "6px",
+				boxShadow: "0 12px 32px rgba(0, 0, 0, 0.28)",
+				padding: "4px 0"
+			},
+			search: {
+				width: "100%",
+				boxSizing: "border-box",
+				border: "none",
+				borderBottom: "1px solid var(--dsw-alias-border-l2)",
+				background: "transparent",
+				color: "var(--dsw-alias-label-primary)",
+				font: "inherit",
+				fontSize: "12px",
+				padding: "6px 10px",
+				outline: "none"
+			},
+			item: {
+				padding: "5px 10px",
+				fontSize: "12px",
+				lineHeight: "18px",
+				cursor: "pointer",
+				whiteSpace: "nowrap",
+				overflow: "hidden",
+				textOverflow: "ellipsis"
+			},
+			itemActive: {
+				background: "var(--dsw-alias-interactive-bg-hover-accent)",
+				color: "var(--dsw-alias-label-primary)"
 			},
 			label: { color: "var(--dsw-alias-label-secondary)", fontSize: "12px", lineHeight: "22px", minWidth: "60px" },
 			diagnostics: {
@@ -588,6 +727,116 @@ window.__ModuleLoader__.load({
 		 * carry `t` from the `locale` option, `useStore` from the `store` option,
 		 * and whatever `inject(actions)` returned.
 		 */
+		/**
+		 * Searchable font picker.
+		 *
+		 * A native `<select>` cannot do this job: its popup is an OS-level surface
+		 * that ignores our colours, cannot be given a height, and does not respond
+		 * to the wheel inside the app. This one is ordinary DOM — a fixed-position
+		 * scroll container (`max-height` + `overflow-y: auto`), so wheel scrolling
+		 * and keyboard dismissal behave normally, and it can be search-filtered
+		 * because a machine with many installed fonts easily has 100+ entries.
+		 */
+		function FontPicker(props) {
+			const families = Array.isArray(props.families) ? props.families : [];
+			const value = typeof props.value === "string" ? props.value : "";
+			const [open, setOpen] = react.useState(false);
+			const [query, setQuery] = react.useState("");
+			const [anchor, setAnchor] = react.useState(null);
+			const wrapRef = react.useRef(null);
+
+			react.useEffect(() => {
+				if (!open) return undefined;
+				const onDismiss = (event) => {
+					// Clicks inside the picker (including the list, which is a fixed
+					// positioned child) must not dismiss it.
+					if (wrapRef.current !== null && wrapRef.current.contains(event.target)) return;
+					if (event.type === "keydown" && event.key !== "Escape") return;
+					setOpen(false);
+					setQuery("");
+				};
+				document.addEventListener("mousedown", onDismiss);
+				document.addEventListener("keydown", onDismiss);
+				return () => {
+					document.removeEventListener("mousedown", onDismiss);
+					document.removeEventListener("keydown", onDismiss);
+				};
+			}, [open]);
+
+			const toggle = (event) => {
+				if (open) {
+					setOpen(false);
+					return;
+				}
+				const rect = event.currentTarget.getBoundingClientRect();
+				setAnchor({
+					left: rect.left,
+					top: rect.bottom + 4,
+					width: Math.max(rect.width, 240)
+				});
+				setOpen(true);
+			};
+
+			const pick = (family) => {
+				props.onPick(family);
+				setOpen(false);
+				setQuery("");
+			};
+
+			const needle = query.trim().toLowerCase();
+			const shown = needle.length === 0 ? families : families.filter((family) => family.toLowerCase().includes(needle));
+
+			return react.createElement(
+				"div",
+				{ style: rowStyles.pickerWrap, ref: wrapRef },
+				react.createElement(
+					"button",
+					{ type: "button", style: rowStyles.select, onClick: toggle, title: value },
+					value.length > 0 ? value : props.placeholder
+				),
+				open && anchor !== null
+					? react.createElement(
+							"div",
+							{
+								style: {
+									...rowStyles.list,
+									left: `${anchor.left}px`,
+									top: `${anchor.top}px`,
+									width: `${anchor.width}px`
+								}
+							},
+							[
+								react.createElement("input", {
+									key: "__search",
+									value: query,
+									placeholder: props.searchPlaceholder,
+									onChange: (event) => setQuery(event.target.value),
+									style: rowStyles.search,
+									autoFocus: true
+								}),
+								react.createElement(
+									"div",
+									{ key: "__default", style: rowStyles.item, onClick: () => pick("") },
+									props.placeholder
+								)
+							].concat(
+								shown.map((family) =>
+									react.createElement(
+										"div",
+										{
+											key: family,
+											style: family === value ? { ...rowStyles.item, ...rowStyles.itemActive } : rowStyles.item,
+											onClick: () => pick(family)
+										},
+										family
+									)
+								)
+							)
+						)
+					: null
+			);
+		}
+
 		function TokyoNightRow(props) {
 			const t = (key) => {
 				try {
@@ -604,6 +853,17 @@ window.__ModuleLoader__.load({
 			const snapshot = useStore((state) => state) ?? {};
 			const [font, setFont] = react.useState(() => (typeof snapshot.font === "string" ? snapshot.font : ""));
 			const [codeFont, setCodeFont] = react.useState(() => (typeof snapshot.codeFont === "string" ? snapshot.codeFont : ""));
+			// Start from the built-in catalog, then swap in what is really installed.
+			const [monoFonts, setMonoFonts] = react.useState(() => MONO_FONTS);
+			react.useEffect(() => {
+				let cancelled = false;
+				void loadSystemFonts().then((families) => {
+					if (!cancelled && Array.isArray(families) && families.length > 0) setMonoFonts(families);
+				});
+				return () => {
+					cancelled = true;
+				};
+			}, []);
 			const chosen = typeof snapshot.chosen === "string" ? snapshot.chosen : "";
 			const call = (name, argument) => {
 				try {
@@ -657,18 +917,16 @@ window.__ModuleLoader__.load({
 					"div",
 					{ style: rowStyles.buttonRow },
 					react.createElement("span", { style: rowStyles.label }, t("row.font")),
-					react.createElement("input", {
-						type: "text",
+					react.createElement(FontPicker, {
+						families: monoFonts,
 						value: font,
-						placeholder: t("row.fontPlaceholder"),
-						onChange: (event) => setFont(event.target.value),
-						style: rowStyles.input
+						placeholder: t("row.fontDefault"),
+						searchPlaceholder: t("row.fontSearch"),
+						onPick: (next) => {
+							setFont(next);
+							call("setFont", { font: next, codeFont });
+						}
 					}),
-					react.createElement(
-						"button",
-						{ type: "button", style: rowStyles.button, onClick: () => call("setFont", { font, codeFont }) },
-						t("row.apply")
-					),
 					react.createElement(
 						"button",
 						{
@@ -687,14 +945,18 @@ window.__ModuleLoader__.load({
 					"div",
 					{ style: rowStyles.buttonRow },
 					react.createElement("span", { style: rowStyles.label }, t("row.codeFont")),
-					react.createElement("input", {
-						type: "text",
+					react.createElement(FontPicker, {
+						families: monoFonts,
 						value: codeFont,
-						placeholder: t("row.codeFontPlaceholder"),
-						onChange: (event) => setCodeFont(event.target.value),
-						style: rowStyles.input
+						placeholder: t("row.fontDefault"),
+						searchPlaceholder: t("row.fontSearch"),
+						onPick: (next) => {
+							setCodeFont(next);
+							call("setFont", { font, codeFont: next });
+						}
 					})
 				),
+				react.createElement("span", { style: rowStyles.description }, t("row.fontMonoHint")),
 				react.createElement("span", { style: rowStyles.diagnostics }, detail)
 			);
 		}
@@ -788,6 +1050,8 @@ window.__ModuleLoader__.load({
 						hostStats: blurHostStats,
 						frost: frostCount,
 						panels: panelsCount,
+						fontSource: fontSource,
+						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
 						bgBase: readComputedSurfaces().bgBase,
 						revision: typeof next === "number" ? next : (revision += 1)
@@ -919,6 +1183,9 @@ window.__ModuleLoader__.load({
 		exports.HOST_ATTRIBUTE = HOST_ATTRIBUTE;
 		exports.FROST_SELECTORS = FROST_SELECTORS;
 		exports.FROST_ATTRIBUTE = FROST_ATTRIBUTE;
+		exports.MONO_FONTS = MONO_FONTS;
+		exports.MONO_FONT_BASES = MONO_FONT_BASES;
+		exports.MONO_FONT_SUFFIXES = MONO_FONT_SUFFIXES;
 		exports.PANEL_SELECTORS = PANEL_SELECTORS;
 		exports.PANEL_ATTRIBUTE = PANEL_ATTRIBUTE;
 		exports.DEFAULT_SKIN = DEFAULT_SKIN;

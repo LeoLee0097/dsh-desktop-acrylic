@@ -48,34 +48,41 @@ export const NIGHT = {
   yellow: '#e0af68'
 }
 
-/** Tokyo Night —day (light). */
+/**
+ * Tokyo Night — day (light), softened.
+ *
+ * The upstream day palette is fairly saturated; on a full-screen light UI that
+ * reads as harsh. Every hue here is lightened and desaturated one step, and the
+ * text colour stays deliberately dark enough to remain readable on the
+ * translucent surfaces above the material field.
+ */
 export const DAY = {
   id: 'day',
   label: '亮色',
   labelEn: 'Light',
   colorScheme: 'light',
-  bg: '#e1e2e7',
-  bgTransparent: '#d5d8e3',
-  bgDeeper: '#e9eaf0',
-  bgDeepest: '#f2f3f7',
-  bgHighlight: '#c4c8da',
-  bgRaised: '#b7bdd4',
-  fg: '#3760bf',
-  fgMuted: '#6172b0',
-  fgSoft: '#4c5a91',
-  gutter: '#a8aecb',
-  comment: '#848cb5',
-  dark3: '#8990b3',
-  dark5: '#68709a',
-  blue: '#2e7de9',
-  blue0: '#1f4b99',
-  cyan: '#007197',
-  green: '#587539',
-  magenta: '#9854f1',
-  orange: '#b15c00',
-  purple: '#7847bd',
-  red: '#f52a65',
-  yellow: '#8c6c3e'
+  bg: '#eff1f6',
+  bgTransparent: '#eef0f5',
+  bgDeeper: '#f6f7fb',
+  bgDeepest: '#fbfcfe',
+  bgHighlight: '#e5e8f2',
+  bgRaised: '#dce0ec',
+  fg: '#33477a',
+  fgMuted: '#5d6c9c',
+  fgSoft: '#4d5b8b',
+  gutter: '#d5d9e7',
+  comment: '#8b93b8',
+  dark3: '#c0c4d8',
+  dark5: '#7d84a8',
+  blue: '#5b8ede',
+  blue0: '#3f6bb5',
+  cyan: '#3a8ba8',
+  green: '#6f8a55',
+  magenta: '#a678e0',
+  orange: '#c07a3a',
+  purple: '#8f6cc0',
+  red: '#e06a8a',
+  yellow: '#a08a5e'
 }
 
 export const PALETTES = [NIGHT, DAY]
@@ -188,23 +195,32 @@ function buildStaticTokens(p) {
 }
 
 /**
- * Surface table: `[token, hue, alpha, floor?]`. The light palette scales every
- * alpha up slightly —over a bright backdrop, low alpha costs contrast.
+ * Surface table: `[token, hue, alpha, floor?]`.
+ *
+ * The light palette scales every alpha up, but only moderately: it still has to
+ * read as glass. Its text is dark, and the window behind it is bright, so
+ * translucency costs nothing in contrast there — unlike the dark palette, whose
+ * light text must never sit on a light wash.
+ *
+ * `buildSurfaceTokens` caps every alpha, so a scaled entry can never become
+ * fully opaque and silently kill the effect.
  */
 function surfaceTable(p) {
   const dark = p.colorScheme === 'dark'
-  const k = dark ? 1 : 9
+  const k = dark ? 1 : 3
   return [
-    // Readability first: the canvas, the base layer and the sidebar stay close
-    // to opaque. Text contrast must not depend on whatever the window happens
-    // to paint behind the page —only floating surfaces are allowed to be
-    // genuinely see-through.
+    // The canvas, base layer and sidebar carry the effect: they are the big
+    // surfaces, and low alpha is what makes them read as glass.
     ['--dsw-alias-bg-base', p.bgTransparent, 0.1 * k],
     ['--dsw-alias-bg-layer-1', p.bgDeeper, 0.08 * k],
     ['--dsw-alias-bg-layer-2', p.bgHighlight, 0.18 * k],
     ['--dsw-alias-bg-layer-3', p.bgRaised, 0.24 * k],
-    ['--dsw-alias-bg-overlay', p.bg, 0.72 * k, 0.6],
-    ['--dsw-specific-sidebar-fill', p.bgDeeper, 0.1 * k],
+    ['--dsw-alias-bg-overlay', p.bg, 0.6 * k, 0.6],
+    // Sidebar tone. The light palette shares the canvas hue *and* alpha, so the
+    // sidebar and the content area render as one continuous surface with no
+    // vertical tone step (the seam across the column). The dark palette keeps
+    // its slightly deeper column — that separation was confirmed as desirable.
+    ['--dsw-specific-sidebar-fill', dark ? p.bgDeeper : p.bgTransparent, 0.1 * k],
     ['--dsw-specific-sidebar-nav-item-hover', p.bgHighlight, 0.28 * k, 0.2],
     ['--dsw-specific-sidebar-nav-item-active', p.bgHighlight, 0.44 * k, 0.34],
     ['--dsw-specific-input-major', p.bgTransparent, 0.26 * k, 0.2],
@@ -250,11 +266,15 @@ function surfaceTable(p) {
   ]
 }
 
+/** Highest alpha any surface may reach — above this the glass reads as solid. */
+const MAX_SURFACE_ALPHA = 0.85
+
 function buildSurfaceTokens(p) {
   const tokens = {}
   for (const [token, hex, alpha, floor] of surfaceTable(p)) {
     const minimum = typeof floor === 'number' ? floor : 0.02
-    tokens[token] = rgba(hex, Math.max(alpha, minimum))
+    const value = Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum))
+    tokens[token] = rgba(hex, value)
   }
   return tokens
 }
@@ -268,10 +288,45 @@ function buildFixedTokens(p) {
   return {
     // Opaque page base for the LIGHT palette only: dark text needs a known
     // ground. The dark palette stays truly transparent so the effect is real.
-    '--dwa-root-base': dark ? 'transparent' : p.bg,
+    // Opaque page base for the DARK palette only: light text needs a known
+    // ground. The light palette keeps a mostly transparent base so its surfaces
+    // can show the material field — its text is dark, and a bright window
+    // backdrop behind it costs nothing in contrast.
+    '--dwa-root-base': dark ? 'transparent' : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),
     '--dwa-panel-blur': '30px',
+    // Native widgets cannot be translucent: the select popup is an OS-level
+    // surface, so option rows need a solid colour from the palette.
+    '--dwa-menu-solid': dark ? p.bg : p.bgDeepest,
+    // tiny-vue (the genui card library) ships its own palette — #fafafa
+    // surfaces, gray text, white table cells — which is why cards and their
+    // tables ignored the theme entirely. Bridging the *global* `--tv-color-*`
+    // family fixes every tiny-vue component at once (Card, Grid/table, Tag…),
+    // because each component token is declared as `var(--tv-color-…)`.
+    // Values reference our own alias tokens, so both skins stay in sync.
+    '--tv-color-text': 'var(--dsw-alias-label-primary)',
+    '--tv-color-text-important': 'var(--dsw-alias-label-primary)',
+    '--tv-color-text-control': 'var(--dsw-alias-label-primary)',
+    '--tv-color-text-secondary': 'var(--dsw-alias-label-secondary)',
+    '--tv-color-text-weaken': 'var(--dsw-alias-label-tertiary)',
+    '--tv-color-text-placeholder': 'var(--dsw-alias-label-tertiary)',
+    '--tv-color-text-disabled': 'var(--dsw-alias-label-dimmed)',
+    '--tv-color-text-active': 'var(--dsw-alias-brand-primary)',
+    '--tv-color-text-link': 'var(--dsw-alias-brand-primary)',
+    '--tv-color-icon': 'var(--dsw-alias-label-secondary)',
+    '--tv-color-bg-1': 'var(--dsw-alias-bg-layer-1)',
+    '--tv-color-bg-2': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-3': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-gray-1': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-header': 'var(--dsw-alias-bg-layer-3)',
+    '--tv-color-bg-hover': 'var(--dsw-alias-interactive-bg-hover)',
+    '--tv-color-bg-hover-1': 'var(--dsw-alias-interactive-bg-hover)',
+    '--tv-color-bg-active-emphasize-light': 'var(--dsw-alias-interactive-bg-hover-accent)',
+    '--tv-color-border': 'var(--dsw-alias-border-l2)',
+    '--tv-color-border-divider': 'var(--dsw-alias-border-l1)',
+    '--tv-color-border-divider-short': 'var(--dsw-alias-border-l1)',
+    '--tv-color-error-text': 'var(--dsw-alias-state-error-primary)',
     // The shell paints this over a real window material: dark wash on night,
     // bright wash on day. On Windows the main window has no material, so this
     // only matters if the desktop side ever enables one.
@@ -344,28 +399,100 @@ export const DEFAULT_SKIN = SKINS[0].id
 /** Sentinel for "follow the shell's built-in appearance". */
 export const NATIVE_SKIN = 'system'
 
+/**
+ * Monospace families offered by the font dropdowns.
+ *
+ * The list is deliberately mono-only and platform-spanning: these are the faces
+ * a terminal-adjacent UI actually wants, and they are either shipped with the
+ * OS or already common in developer setups. A missing family is harmless — the
+ * override always appends the default stack, so an uninstalled name simply
+ * falls through to the next entry.
+ */
+export const MONO_FONTS = [
+  'JetBrains Mono',
+  'Fira Code',
+  'Cascadia Code',
+  'Source Code Pro',
+  'IBM Plex Mono',
+  'Roboto Mono',
+  'Ubuntu Mono',
+  'SF Mono',
+  'Menlo',
+  'Consolas',
+  'Liberation Mono',
+  'DejaVu Sans Mono',
+  'Courier New'
+]
+
+/**
+ * Candidate base names for renderer-side font detection.
+ *
+ * The browser cannot list installed fonts, but it can answer "is this family
+ * available?" for a *given* name — so the renderer probes a catalog of names it
+ * knows about. Wider than MONO_FONTS on purpose: CJK monospace faces and the
+ * families that ship Nerd Font / Powerline builds are the ones people use.
+ */
+export const MONO_FONT_BASES = [
+  'Cascadia Code',
+  'Cascadia Mono',
+  'JetBrains Mono',
+  'JetBrainsMono',
+  'Fira Code',
+  'FiraCode',
+  'Fira Mono',
+  'Source Code Pro',
+  'IBM Plex Mono',
+  'Roboto Mono',
+  'Ubuntu Mono',
+  'UbuntuMono',
+  'Hack',
+  'Inconsolata',
+  'Victor Mono',
+  'Iosevka',
+  'Iosevka Term',
+  'Terminus',
+  'Maple Mono',
+  'Maple Mono CN',
+  'Sarasa Mono SC',
+  'Sarasa Mono TC',
+  'Sarasa Fixed SC',
+  'LXGW WenKai Mono',
+  'Noto Sans Mono',
+  'Noto Sans Mono CJK SC',
+  'Anonymous Pro',
+  'Cousine',
+  'PT Mono',
+  'Space Mono',
+  'Input Mono',
+  'Menlo',
+  'SF Mono',
+  'Consolas',
+  'Lucida Console',
+  'Courier New',
+  'DejaVu Sans Mono',
+  'Liberation Mono',
+  'Bitstream Vera Sans Mono',
+  'Monaco',
+  'Andale Mono'
+]
+
+/**
+ * Suffixes that turn a base into a patched build. Nerd Fonts and Powerline
+ * shipments rename the family, so each variant has to be probed as its own name.
+ */
+export const MONO_FONT_SUFFIXES = ['', ' NF', ' NFM', ' Nerd Font', ' Nerd Font Mono', ' PL']
+
 /* ============================ acrylic layer ============================== */
 
 /**
- * Container blur layer switch —deliberately OFF.
+ * Master switch for the acrylic layer (blur + textures).
  *
- * Two-point correlation across builds: v0.3.0 (layer on) —text unreadable,
- * v0.3.2 (layer off, 0 bytes of chrome CSS) —everything fine, v0.3.3 (layer on)
- * —text unreadable again. The layer is therefore the culprit, not the tokens.
- *
- * Why it cannot simply be patched: the shell's own menu material puts the blur
- * on a `::before` of a container **it owns and positions** (`position: relative`
- * + `isolation: isolate`). Our containers are the shell's layout columns, and
- * we can neither add `position: relative` (that would re-anchor their absolutely
- * positioned children) nor rely on them being positioned —an absolutely
- * positioned pseudo-element inside a static container escapes to the nearest
- * positioned ancestor, spans the viewport, and ends up frosting the interface
- * itself instead of sitting behind it.
- *
- * The safe, native path stays: every skin ships
- * `--dsw-menu-backdrop-filter` (blur = `ACRYLIC.blurPx`), which the shell applies
- * to its own menu/popover material. Menus keep their frost; nothing else is
- * touched.
+ * History worth keeping: an earlier build blurred the shell's layout columns
+ * directly, which (a) made the columns containing blocks for their
+ * `position: fixed` window controls — the controls re-anchored and vanished —
+ * and (b) escaped the viewport when a column was static, frosting the entire
+ * interface including its text. Both are now prevented at runtime rather than
+ * by disabling the feature: see HOST_SELECTORS / armBlurHosts.
  */
 export const ACRYLIC_ENABLED = true
 
@@ -388,9 +515,14 @@ export const HOST_ATTRIBUTE = 'data-dwa-blur'
  * cannot have: it sits at the window edge, there is nothing behind it but our
  * own pre-blurred base, and the container itself cannot be filtered without
  * re-anchoring the absolutely / fixed positioned children the shell puts inside
- * it. So the sidebar gets a *static* frosted texture instead: a soft top-down
- * sheen, fine grain, and a one-pixel inner highlight, all derived from the
- * active palette's own label colour.
+ * it. So the sidebar gets a *static* texture instead: fine grain, derived from
+ * the active palette's own label colour.
+ *
+ * The grain is deliberately uniform. An earlier version also painted a top-down
+ * sheen and a one-pixel inner highlight; because they were applied to the
+ * sidebar column only, they drew a hard edge at the column's top and made the
+ * chrome look discontinuous next to the title bar — in both the expanded and the
+ * collapsed state.
  *
  * It is painted as `background-image` on the element itself — no filter, no
  * pseudo-element, no positioning — so it cannot disturb layout or stacking.
@@ -441,20 +573,34 @@ export function buildPanelCss() {
     "}"
   ].join('\n')
 }
+/**
+ * Static grain for surfaces that cannot be blurred.
+ *
+ * Uniform on purpose: a directional sheen or an inner highlight would only
+ * exist on this one column, which makes the chrome look discontinuous against
+ * the title bar above it (and when the sidebar is collapsed, even more so).
+ * A uniform grain has no edges, so it reads as the same material everywhere.
+ *
+ * The strength is per palette, because the perception is not symmetric: a light
+ * grain over a dark base reads far stronger than a dark grain over a light base.
+ * The light palette therefore needs roughly twice the mix to show the same
+ * amount of texture.
+ */
 export function buildFrostCss() {
   const arm = ':root[data-dwa-theme]'
-  const target = `${arm} [${FROST_ATTRIBUTE}]`
-  return [
-    `${target} {`,
-    "  background-image:",
-    "    linear-gradient(180deg,",
-    "      color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent),",
-    "      transparent 45%),",
-    "    radial-gradient(color-mix(in srgb, var(--dsw-alias-label-primary) 9%, transparent) 0.5px, transparent 0.5px);",
-    "  background-size: auto, 3px 3px;",
-    "  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent);",
-    "}"
-  ].join('\n')
+  const grain = (p) => {
+    const strength = p.colorScheme === 'dark' ? 6 : 14
+    const scope = p.colorScheme === 'dark' ? '[data-ds-dark-theme]' : ':not([data-ds-dark-theme])'
+    return [
+      `${arm} body${scope} [${FROST_ATTRIBUTE}] {`,
+      "  background-image: radial-gradient(",
+      `    color-mix(in srgb, var(--dsw-alias-label-primary) ${strength}%, transparent) 0.5px,`,
+      "    transparent 0.5px);",
+      "  background-size: 3px 3px;",
+      "}"
+    ].join('\n')
+  }
+  return [grain(NIGHT), grain(DAY)].join('\n')
 }
 
 /**
@@ -490,6 +636,16 @@ export function buildBaseCss() {
     `${arm} {`,
     "  background: var(--dwa-root-base, transparent);",
     "}",
+    // Native widgets — the font dropdowns, their option list, scrollbars — follow
+    // `color-scheme`. Without this the select popup stays light even on the dark
+    // theme, which is exactly the "the dropdown ignores the theme" symptom.
+    `${arm} {`,
+    "  color-scheme: dark;",
+    "}",
+    `${arm} body:not([data-ds-dark-theme]) {`,
+    "  color-scheme: light;",
+    "}",
+
     layer(NIGHT, ''),
     layer(DAY, ':not([data-ds-dark-theme])')
   ].join('\n')
@@ -497,7 +653,9 @@ export function buildBaseCss() {
 
 /** Soft multi-hue field used as the material base for one palette. */
 function materialStack(p) {
-  const strength = p.colorScheme === 'dark' ? 30 : 22
+  // The light palette keeps a gentler field: a vivid wash over a bright base
+  // looks loud rather than soft.
+  const strength = p.colorScheme === 'dark' ? 30 : 24
   const stop = (hue, weight, x, y, size) =>
     `radial-gradient(${size}% ${size}% at ${x}% ${y}%, color-mix(in srgb, ${hue} ${weight}%, transparent), transparent 70%)`
   return [
