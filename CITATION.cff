@@ -2,7 +2,7 @@
 # GitHub renders this as the "Cite this repository" widget on the repo page.
 cff-version: 1.2.0
 message: "If you use dsh-desktop-acrylic, please cite it as below."
-title: "dsh-desktop-acrylic: Tokyo Night themes for DeepSeek Harness Desktop"
+title: "dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop"
 abstract: >-
   Dark and light Tokyo Night themes for DeepSeek Harness Desktop, implemented as real themes
   registered into the built-in theme runtime. Adds translucent surfaces, a material base layer,

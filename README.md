@@ -15,18 +15,18 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 ## 能力一览
 
-| 能力 | 实现方式 | 参数 |
-| --- | --- | --- |
-| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 180 个 token | 暗色底 `#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
-| 图标随主题变色 | 桌面端用 `currentColor` 绘制图标且没有图标专属 token，因此图标自动跟随 `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | 无需额外配置 |
-| 画布透明度 | 背景族 token 带 alpha | 暗色 `0.10`（90% 透明）；亮色 `0.30` |
-| 材质底层 | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊 | 强度 暗 30% / 亮 24%，`blur(28px)` |
-| 弹出菜单 / 下拉 / 浮层 | 皮肤下发 `--dsw-menu-backdrop-filter`，由桌面端自带材质通路渲染 | `blur(24px) saturate(1.15)` |
-| 对话框（设置窗口等） | 磨砂面板：`isolation` + 绝对定位 `::before` 承载模糊，面板本身不加滤镜 | 底色 `rgba(…, 0.75)`（25% 透明）+ `blur(30px)` |
-| 工作区主侧栏 | 均匀颗粒纹理（纯 `background-image`，无方向性、无边缘） | 暗色 6% / 亮色 14%（明暗感知不对称，故分开设值） |
-| 卡片与表格（genui） | 把卡片库自带的 `--tv-*` 调色板桥接到我们的别名 token | 22 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框 |
-| 原生控件 | `color-scheme` 随主题切换 | 滚动条、复选框等原生部件一并跟随 |
-| 字体 | 两个可搜索下拉（界面字体 / 代码字体），列出**本机可用的等宽字体**（含 NF / PL 变体） | 见下文「字体探测」 |
+| 能力                          | 实现方式                                                                                                                        | 参数                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 180 个 token                                                    | 暗色底`#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
+| 图标随主题变色                | 桌面端用`currentColor` 绘制图标且没有图标专属 token，因此图标自动跟随 `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | 无需额外配置                                                     |
+| 画布透明度                    | 背景族 token 带 alpha                                                                                                           | 暗色`0.10`（90% 透明）；亮色 `0.30`                          |
+| 材质底层                      | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊                                                                          | 强度 暗 30% / 亮 24%，`blur(28px)`                             |
+| 弹出菜单 / 下拉 / 浮层        | 皮肤下发`--dsw-menu-backdrop-filter`，由桌面端自带材质通路渲染                                                                | `blur(24px) saturate(1.15)`                                    |
+| 对话框（设置窗口等）          | 磨砂面板：`isolation` + 绝对定位 `::before` 承载模糊，面板本身不加滤镜                                                      | 底色`rgba(…, 0.75)`（25% 透明）+ `blur(30px)`               |
+| 工作区主侧栏                  | 均匀颗粒纹理（纯`background-image`，无方向性、无边缘）                                                                        | 暗色 6% / 亮色 14%（明暗感知不对称，故分开设值）                 |
+| 卡片与表格（genui）           | 把卡片库自带的`--tv-*` 调色板桥接到我们的别名 token                                                                           | 22 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框                  |
+| 原生控件                      | `color-scheme` 随主题切换                                                                                                     | 滚动条、复选框等原生部件一并跟随                                 |
+| 字体                          | 两个可搜索下拉（界面字体 / 代码字体），列出**本机可用的等宽字体**（含 NF / PL 变体）                                      | 见下文「字体探测」                                               |
 
 集中定义：`src/theme.mjs` 的 `ACRYLIC`（模糊半径等）、`surfaceTable`（表面与 alpha）、
 `MONO_FONTS` / `MONO_FONT_BASES` / `MONO_FONT_SUFFIXES`（字体数据）；样式规则由构建脚本生成。
@@ -201,22 +201,22 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 
 本项目的正式名称、版本与 URL：
 
-| 字段 | 值 |
-| --- | --- |
-| 名称 | dsh-desktop-acrylic |
-| 副题 | Tokyo Night themes for DeepSeek Harness Desktop |
-| 作者 | LeoLee0097 |
-| 版本 | 0.8.3 |
-| 年份 | 2026 |
+| 字段 | 值                                                |
+| ---- | ------------------------------------------------- |
+| 名称 | dsh-desktop-acrylic                               |
+| 副题 | Tokyo Night themes for DeepSeek Harness Desktop   |
+| 作者 | LeoLee0097                                        |
+| 版本 | 0.8.3                                             |
+| 年份 | 2026                                              |
 | 仓库 | https://github.com/LeoLee0097/dsh-desktop-acrylic |
-| 许可 | MIT |
+| 许可 | MIT                                               |
 
 **BibTeX（推荐，适用于 LaTeX / Zotero / JabRef）**
 
 ```bibtex
 @software{leolee0097_dsh_desktop_acrylic_2026,
   author       = {LeoLee0097},
-  title        = {{dsh-desktop-acrylic}: {Tokyo} Night Themes for {DeepSeek} {Harness} Desktop},
+  title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
   version      = {0.8.3},
   license      = {MIT},
@@ -228,28 +228,28 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 **GB/T 7714-2015（中文论文常用，电子资源 [EB/OL]）**
 
 ```text
-LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 主题与磨砂界面[EB/OL].
+LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 风格磨砂界面主题[EB/OL].
 (2026-09-26)[2026-09-26]. https://github.com/LeoLee0097/dsh-desktop-acrylic.
 ```
 
 **APA 7（计算机软件 [Computer software]）**
 
 ```text
-LeoLee0097. (2026). dsh-desktop-acrylic: Tokyo Night themes for DeepSeek Harness Desktop
+LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
 (Version 0.8.3) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**
 
 ```text
-LeoLee0097. "dsh-desktop-acrylic: Tokyo Night Themes for DeepSeek Harness Desktop." GitHub, 2026,
+LeoLee0097. "dsh-desktop-acrylic: Acrylic Tokyo Night Style Themes for DeepSeek Harness Desktop." GitHub, 2026,
 github.com/LeoLee0097/dsh-desktop-acrylic. Accessed 26 Sept. 2026.
 ```
 
 **纯文本（README、博客、演示稿末尾一类场合）**
 
 ```text
-dsh-desktop-acrylic — Tokyo Night themes for DeepSeek Harness Desktop, by LeoLee0097 (MIT).
+dsh-desktop-acrylic — Acrylic Tokyo Night style themes for DeepSeek Harness Desktop, by LeoLee0097 (MIT).
 https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 

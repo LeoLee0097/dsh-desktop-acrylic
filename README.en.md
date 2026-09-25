@@ -223,7 +223,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 | Field | Value |
 | --- | --- |
 | Name | dsh-desktop-acrylic |
-| Subtitle | Tokyo Night themes for DeepSeek Harness Desktop |
+| Subtitle | Acrylic Tokyo Night style themes for DeepSeek Harness Desktop |
 | Author | LeoLee0097 |
 | Version | 0.8.3 |
 | Year | 2026 |
@@ -235,7 +235,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 ```bibtex
 @software{leolee0097_dsh_desktop_acrylic_2026,
   author       = {LeoLee0097},
-  title        = {{dsh-desktop-acrylic}: {Tokyo} Night Themes for {DeepSeek} {Harness} Desktop},
+  title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
   version      = {0.8.3},
   license      = {MIT},
@@ -247,28 +247,28 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 **APA 7 (software)**
 
 ```text
-LeoLee0097. (2026). dsh-desktop-acrylic: Tokyo Night themes for DeepSeek Harness Desktop
+LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
 (Version 0.8.3) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**
 
 ```text
-LeoLee0097. "dsh-desktop-acrylic: Tokyo Night Themes for DeepSeek Harness Desktop." GitHub, 2026,
+LeoLee0097. "dsh-desktop-acrylic: Acrylic Tokyo Night Style Themes for DeepSeek Harness Desktop." GitHub, 2026,
 github.com/LeoLee0097/dsh-desktop-acrylic. Accessed 26 Sept. 2026.
 ```
 
 **GB/T 7714-2015 (common in Chinese academic writing, electronic resource [EB/OL])**
 
 ```text
-LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 主题与磨砂界面[EB/OL].
+LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 风格磨砂界面主题[EB/OL].
 (2026-09-26)[2026-09-26]. https://github.com/LeoLee0097/dsh-desktop-acrylic.
 ```
 
 **Plain text (README, blog posts, last slide of a talk)**
 
 ```text
-dsh-desktop-acrylic — Tokyo Night themes for DeepSeek Harness Desktop, by LeoLee0097 (MIT).
+dsh-desktop-acrylic — Acrylic Tokyo Night style themes for DeepSeek Harness Desktop, by LeoLee0097 (MIT).
 https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
