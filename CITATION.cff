@@ -1,0 +1,37 @@
+# CITATION.cff — machine-readable citation metadata (Citation File Format 1.2.0).
+# GitHub renders this as the "Cite this repository" widget on the repo page.
+cff-version: 1.2.0
+message: "If you use dsh-desktop-acrylic, please cite it as below."
+title: "dsh-desktop-acrylic: Tokyo Night themes for DeepSeek Harness Desktop"
+abstract: >-
+  Dark and light Tokyo Night themes for DeepSeek Harness Desktop, implemented as real themes
+  registered into the built-in theme runtime. Adds translucent surfaces, a material base layer,
+  frosted panels and popovers, and a searchable picker for the monospace families installed on
+  the machine.
+type: software
+authors:
+  - name: LeoLee0097
+version: 0.8.3
+date-released: "2026-09-26"
+license: MIT
+repository-code: "https://github.com/LeoLee0097/dsh-desktop-acrylic"
+url: "https://github.com/LeoLee0097/dsh-desktop-acrylic"
+keywords:
+  - deepseek-harness
+  - dsh
+  - dsh-plugin
+  - theme
+  - skin
+  - acrylic
+  - tokyo-night
+  - desktop
+references:
+  - type: software
+    title: "Tokyo Night"
+    authors:
+      - name: enkia
+    url: "https://github.com/enkia/tokyo-night-vscode-theme"
+    license: MIT
+    notes: >-
+      Upstream colour palette this project derives from; the light palette here is brightened
+      and desaturated, and the panel, texture and bridge layers are additions of this project.

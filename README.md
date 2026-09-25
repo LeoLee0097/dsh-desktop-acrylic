@@ -1,10 +1,15 @@
 # dsh-desktop-acrylic
 
+**中文** · [English](README.en.md)
+
 Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) Desktop —
 两套主题（暗色 / 亮色）、磨砂面板、等宽字体选择。
 
 两套皮肤都是**注册进内置主题运行时的真实主题**（`ctx.theme.register`），因此切换主题就是切换
 运行时偏好本身，不依赖属性开关或事后 CSS 覆盖。
+
+> 若你在论文、报告或其它项目中使用本项目，请引用它 —— 引用模板见[引用与许可](#引用与许可)，
+> 仓库根目录也提供了机器可读的 [`CITATION.cff`](CITATION.cff)（GitHub 会据此显示 "Cite this repository"）。
 
 ---
 
@@ -175,6 +180,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 
 ## 变更记录
 
+- **0.8.3** — 文档：中英文双语 README（`README.md` / `README.en.md`）、`CITATION.cff` 与引用模板。
 - **0.8.x** — 字体：改为列出本机可用的等宽字体（渲染进程探测 + 宿主目录扫描，含 NF / PL 变体）；
   自绘可搜索下拉替代原生 select（原生弹层滚不动）；卡片与表格桥接 tiny-vue 调色板；
   原生控件 `color-scheme` 随主题。
@@ -189,6 +195,77 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
   分阶段启用定位故障面；安全模式加固（不透明页面基色、可读性优先 alpha、失败隔离、构建期校验）。
 - **0.1.0 - 0.2.x** — 早期版本：皮肤注册、设置行、持久开关、透明度档位与相应回归修复。
 
+## 引用与许可
+
+### 引用本项目
+
+本项目的正式名称、版本与 URL：
+
+| 字段 | 值 |
+| --- | --- |
+| 名称 | dsh-desktop-acrylic |
+| 副题 | Tokyo Night themes for DeepSeek Harness Desktop |
+| 作者 | LeoLee0097 |
+| 版本 | 0.8.3 |
+| 年份 | 2026 |
+| 仓库 | https://github.com/LeoLee0097/dsh-desktop-acrylic |
+| 许可 | MIT |
+
+**BibTeX（推荐，适用于 LaTeX / Zotero / JabRef）**
+
+```bibtex
+@software{leolee0097_dsh_desktop_acrylic_2026,
+  author       = {LeoLee0097},
+  title        = {{dsh-desktop-acrylic}: {Tokyo} Night Themes for {DeepSeek} {Harness} Desktop},
+  year         = {2026},
+  version      = {0.8.3},
+  license      = {MIT},
+  url          = {https://github.com/LeoLee0097/dsh-desktop-acrylic},
+  note         = {Dark and light themes, acrylic panels, monospace font picker}
+}
+```
+
+**GB/T 7714-2015（中文论文常用，电子资源 [EB/OL]）**
+
+```text
+LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 主题与磨砂界面[EB/OL].
+(2026-09-26)[2026-09-26]. https://github.com/LeoLee0097/dsh-desktop-acrylic.
+```
+
+**APA 7（计算机软件 [Computer software]）**
+
+```text
+LeoLee0097. (2026). dsh-desktop-acrylic: Tokyo Night themes for DeepSeek Harness Desktop
+(Version 0.8.3) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
+```
+
+**MLA 9**
+
+```text
+LeoLee0097. "dsh-desktop-acrylic: Tokyo Night Themes for DeepSeek Harness Desktop." GitHub, 2026,
+github.com/LeoLee0097/dsh-desktop-acrylic. Accessed 26 Sept. 2026.
+```
+
+**纯文本（README、博客、演示稿末尾一类场合）**
+
+```text
+dsh-desktop-acrylic — Tokyo Night themes for DeepSeek Harness Desktop, by LeoLee0097 (MIT).
+https://github.com/LeoLee0097/dsh-desktop-acrylic
+```
+
+引用日期请替换为你实际访问的日期；版本号随发布更新。机器可读版本见 [`CITATION.cff`](CITATION.cff)。
+
+### 致谢与上游归属
+
+配色灵感与色值来源为 **Tokyo Night**（作者 enkia），本项目对亮色盘做了提亮与降饱和处理，
+并新增了面板、纹理与桥接层：
+
+```text
+enkia. Tokyo Night[EB/OL]. https://github.com/enkia/tokyo-night-vscode-theme.
+```
+
+如果你同时需要使用上游配色，请一并向其致谢；上游与本项目均为 MIT 许可。
+
 ## License
 
-MIT
+MIT —— 见 [LICENSE](LICENSE)。
