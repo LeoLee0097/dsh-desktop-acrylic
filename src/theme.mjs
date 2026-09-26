@@ -121,6 +121,10 @@ export const ACRYLIC = {
   // larger radius than the chrome layer before the effect is visible at all:
   // blurring an already-blurred field changes nothing.
   menuBlurPx: 24,
+  // The dim mask behind a modal dialog frosts the whole interface beneath it.
+  // It is a single full-viewport convolution, so a moderate radius reads as
+  // acrylic without paying for a second menu-grade blur.
+  maskBlurPx: 12,
   // The base keeps some structure on purpose -- a fully blurred backdrop gives
   // the floating blur nothing to work with.
   materialBlurPx: 28,
@@ -294,6 +298,9 @@ function buildFixedTokens(p) {
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),
     '--dwa-panel-blur': '30px',
+    // Frosted dim-mask spec: the overlay behind an open modal blurs whatever
+    // of the interface shows through it. Radius follows the ACRYLIC knob.
+    '--dwa-mask-blur': `${ACRYLIC.maskBlurPx}px`,
     // Native widgets cannot be translucent: the select popup is an OS-level
     // surface, so option rows need a solid colour from the palette.
     '--dwa-menu-solid': dark ? p.bg : p.bgDeepest,
@@ -544,6 +551,9 @@ export const PANEL_ATTRIBUTE = 'data-dwa-panel'
  */
 export const PANEL_FLAT_ATTRIBUTE = 'data-dwa-panel-flat'
 
+/** Attribute the runtime sets on the dim mask behind an open dialog. */
+export const MASK_ATTRIBUTE = 'data-dwa-mask'
+
 /** Dialogs that qualify for the frosted-panel treatment. */
 export const PANEL_SELECTORS = ['[role="dialog"]', 'dialog']
 
@@ -583,6 +593,32 @@ export function buildPanelCss() {
     "  background-color: var(--dwa-panel-fill) !important;",
     "  -webkit-backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
     "  backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",
+    "}"
+  ].join('\n')
+}
+
+/**
+ * Frosted dim mask behind open dialogs (the settings window among them).
+ *
+ * When a modal opens, the shell paints a mask over the page to dim it. The
+ * mask is a viewport-sized leaf: it owns no positioned descendants except
+ * (sometimes) the dialog itself, whose geometry a re-anchor cannot change
+ * because the mask spans the viewport. So — unlike the chrome columns — the
+ * blur can go on the element itself. Native `<dialog>` elements expose their
+ * backdrop as the `::backdrop` pseudo-element, which gets the same rule.
+ */
+export function buildMaskCss() {
+  const arm = ':root[data-dwa-theme]'
+  const blur = `blur(var(--dwa-mask-blur, ${ACRYLIC.maskBlurPx}px)) saturate(1.1)`
+  return [
+    `${arm} [${MASK_ATTRIBUTE}] {`,
+    `  -webkit-backdrop-filter: ${blur};`,
+    `  backdrop-filter: ${blur};`,
+    "}",
+    `${arm} dialog[${PANEL_ATTRIBUTE}]::backdrop,`,
+    `${arm} dialog[${PANEL_FLAT_ATTRIBUTE}]::backdrop {`,
+    `  -webkit-backdrop-filter: ${blur};`,
+    `  backdrop-filter: ${blur};`,
     "}"
   ].join('\n')
 }
@@ -728,7 +764,10 @@ export function buildChromeCss() {
     "  background-size: 3px 3px;",
     "}",
     "@media (prefers-reduced-transparency: reduce) {",
-    `${layer} {`,
+    `${layer},`,
+    `${arm} [${MASK_ATTRIBUTE}],`,
+    `${arm} dialog[${PANEL_ATTRIBUTE}]::backdrop,`,
+    `${arm} dialog[${PANEL_FLAT_ATTRIBUTE}]::backdrop {`,
     "    -webkit-backdrop-filter: none;",
     "    backdrop-filter: none;",
     "  }",
@@ -736,7 +775,9 @@ export function buildChromeCss() {
     // Surfaces that cannot be blurred at all get the static frosted texture.
     buildFrostCss(),
     // Dialogs get a real frosted panel (25% transparency + 30px blur).
-    buildPanelCss()
+    buildPanelCss(),
+    // The dim mask behind an open dialog frosts the interface beneath it.
+    buildMaskCss()
   ].join("\n")
 }
 

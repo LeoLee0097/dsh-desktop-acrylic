@@ -119,6 +119,7 @@
     "--dwa-root-base": "color-mix(in srgb, #eff1f6 55%, transparent)",
     "--dwa-panel-fill": "rgba(238, 240, 245, 0.75)",
     "--dwa-panel-blur": "30px",
+    "--dwa-mask-blur": "12px",
     "--dwa-menu-solid": "#fbfcfe",
     "--tv-color-text": "var(--dsw-alias-label-primary)",
     "--tv-color-text-important": "var(--dsw-alias-label-primary)",

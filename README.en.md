@@ -35,6 +35,7 @@ overrides.
 | Material base | A soft blue/purple/cyan field built from the palette, pinned to the bottom layer and pre-blurred | strength dark 30% / light 24%, `blur(28px)` |
 | Menus, popovers, floating surfaces | The skin ships `--dsw-menu-backdrop-filter`, applied by the shell's own material path | `blur(24px) saturate(1.15)` |
 | Dialogs (the settings window) | Frosted panel: positioned dialogs use `isolation` + an absolutely positioned `::before`; **static** ones (common for a settings window) get the blur on the element itself, after excluding dialogs that contain `position: fixed` descendants | fill `rgba(…, 0.75)` (25% transparent) + `blur(30px)` |
+| Dialog backdrop mask | The dim overlay behind an open modal gets a `backdrop-filter`, so the interface shows through frosted; native `<dialog>` elements get `::backdrop`; disabled together with the blur layer under `prefers-reduced-transparency` | `blur(12px) saturate(1.1)` (`--dwa-mask-blur`) |
 | Workspace sidebar | Uniform grain (pure `background-image`, no direction, no edges) | dark 6% / light 14% (perception is asymmetric, so the values differ) |
 | Cards and tables (genui) | The card library's own `--tv-*` palette is bridged to our alias tokens | 22 bridges: surfaces, interaction, text, icons, borders |
 | Native widgets | `color-scheme` follows the theme | scrollbars, checkboxes and friends follow along |
@@ -154,6 +155,7 @@ curl http://127.0.0.1:<port>/dark-acrylic/fonts     # installed font catalog (ho
   "hostStats": { "matched": 23, "armed": 0, "skipped": 23 },
   "frost": 1,
   "panels": 1,
+  "masks": 1,
   "fontSource": "probe",
   "fontCount": 18,
   "computed": {
@@ -169,6 +171,11 @@ curl http://127.0.0.1:<port>/dark-acrylic/fonts     # installed font catalog (ho
 `panels` counts the dialogs currently carrying the frosted panel, and `panelDebug` states *why* each
 dialog was armed or skipped — `div.… 900x600 → flat`, `→ positioned`, `→ skip(static, fixed=3)` or
 `→ skip(small)`. When a dialog has no effect, that line is the first thing to read.
+
+`masks` counts how many backdrop masks behind open dialogs were frosted, and `maskDebug` records the
+outcome — `div.… → mask` (hit) or `div.… → no-mask` (no viewport-sized fixed/absolute parent or
+sibling matched; a native `<dialog>` still gets its `::backdrop` rule in that case). When the
+background behind a dialog is not frosted, that line is the first thing to read.
 
 `hosts` and `hostStats` explain "why is there no frost here": `matched` is the number of candidate
 containers, `armed` how many actually received a blur layer. Layout columns are usually static
@@ -216,6 +223,10 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.8.5** — Frosted dialog backdrop: the dim mask behind an open modal now carries a
+  `backdrop-filter` (default `blur(12px) saturate(1.1)`, tunable via `--dwa-mask-blur`), so the
+  interface shows through frosted; native `<dialog>` elements get `::backdrop`; new diagnostics
+  `masks` / `maskDebug`, and the settings row shows `masks`.
 - **0.8.4** — Dialog frost fixed: a fallback path for static dialogs (the blur goes on the element
   itself, and dialogs containing `position: fixed` descendants are excluded first); diagnostics gained
   `panelDebug` and `panels`, and the settings row now shows `panels` / `fonts`.
@@ -247,7 +258,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 | Name | dsh-desktop-acrylic |
 | Subtitle | Acrylic Tokyo Night style themes for DeepSeek Harness Desktop |
 | Author | LeoLee0097 |
-| Version | 0.8.4 |
+| Version | 0.8.5 |
 | Year | 2026 |
 | Repository | https://github.com/LeoLee0097/dsh-desktop-acrylic |
 | License | MIT |
@@ -259,7 +270,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
   author       = {LeoLee0097},
   title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
-  version      = {0.8.4},
+  version      = {0.8.5},
   license      = {MIT},
   url          = {https://github.com/LeoLee0097/dsh-desktop-acrylic},
   note         = {Dark and light themes, acrylic panels, monospace font picker}
@@ -270,7 +281,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ```text
 LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
-(Version 0.8.4) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
+(Version 0.8.5) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**

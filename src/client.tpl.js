@@ -49,6 +49,8 @@ window.__ModuleLoader__.load({
 		const PANEL_ATTRIBUTE = /*__PANEL_ATTRIBUTE__*/ "data-dwa-panel";
 		/** Static-dialog fallback: the blur sits on the element itself. */
 		const PANEL_FLAT_ATTRIBUTE = /*__PANEL_FLAT_ATTRIBUTE__*/ "data-dwa-panel-flat";
+		/** Attribute that frosts the dim mask behind an open dialog. */
+		const MASK_ATTRIBUTE = /*__MASK_ATTRIBUTE__*/ "data-dwa-mask";
 		/** Theme applied when the user has not chosen yet. */
 		const DEFAULT_SKIN = /*__DEFAULT_SKIN__*/ "tokyo-night";
 		/** Sentinel for "follow the shell's built-in appearance". */
@@ -174,6 +176,11 @@ window.__ModuleLoader__.load({
 		let frostCount = 0;
 		/** Number of dialogs currently frosted as panels. */
 		let panelsCount = 0;
+		/** Number of dim masks currently frosted behind dialogs. */
+		let maskCount = 0;
+		/** What the dialog pass frosted, for diagnostics (short list). */
+		let maskTargets = [];
+		let maskDebug = [];
 		/** Mutation observer + debounce timer for late-mounted surfaces. */
 		let frostObserver = null;
 		let rearmTimer = null;
@@ -240,12 +247,13 @@ window.__ModuleLoader__.load({
 		/** Drop every attribute we may have set (blur layer and frost texture). */
 		function disarmBlurHosts() {
 			try {
-				const nodes = document.querySelectorAll(`[${HOST_ATTRIBUTE}], [${FROST_ATTRIBUTE}], [${PANEL_ATTRIBUTE}], [${PANEL_FLAT_ATTRIBUTE}]`);
+				const nodes = document.querySelectorAll(`[${HOST_ATTRIBUTE}], [${FROST_ATTRIBUTE}], [${PANEL_ATTRIBUTE}], [${PANEL_FLAT_ATTRIBUTE}], [${MASK_ATTRIBUTE}]`);
 				for (const node of Array.prototype.slice.call(nodes)) {
 					node.removeAttribute(HOST_ATTRIBUTE);
 					node.removeAttribute(FROST_ATTRIBUTE);
 					node.removeAttribute(PANEL_ATTRIBUTE);
 					node.removeAttribute(PANEL_FLAT_ATTRIBUTE);
+					node.removeAttribute(MASK_ATTRIBUTE);
 				}
 			} catch {
 				// nothing to clean up
@@ -256,6 +264,9 @@ window.__ModuleLoader__.load({
 			panelsCount = 0;
 			panelDebug = [];
 			frostTargets = [];
+			maskCount = 0;
+			maskTargets = [];
+			maskDebug = [];
 		}
 		/**
 		 * Arm the imitation frost.
@@ -310,6 +321,17 @@ window.__ModuleLoader__.load({
 			let armed = 0;
 			frostTargets = [];
 			panelDebug = [];
+			maskDebug = [];
+			// Masks are re-detected below, so drop the ones armed by the previous pass.
+			for (const node of maskTargets) {
+				try {
+					node.removeAttribute(MASK_ATTRIBUTE);
+				} catch {
+					// node gone
+				}
+			}
+			maskTargets = [];
+			maskCount = 0;
 			let dialogs = [];
 			try {
 				dialogs = Array.prototype.slice.call(document.querySelectorAll(PANEL_SELECTORS.join(",")));
@@ -341,6 +363,7 @@ window.__ModuleLoader__.load({
 					dialog.setAttribute(PANEL_ATTRIBUTE, "");
 					armed += 1;
 					recordFrostTarget(dialog);
+					armDialogMask(dialog);
 					panelDebug.push(`${describeNode(dialog)} ${size} → positioned`);
 					continue;
 				}
@@ -354,9 +377,71 @@ window.__ModuleLoader__.load({
 				dialog.setAttribute(PANEL_FLAT_ATTRIBUTE, "");
 				armed += 1;
 				recordFrostTarget(dialog);
+				armDialogMask(dialog);
 				panelDebug.push(`${describeNode(dialog)} ${size} → flat`);
 			}
 			return armed;
+		}
+
+		/**
+		 * Frost the dim mask behind an open dialog.
+		 *
+		 * The mask is the shell's own overlay — the element that darkens the page
+		 * behind a modal. It is a viewport-sized leaf (the dialog itself is a
+		 * sibling or a child of it), so a `backdrop-filter` on it only convolves
+		 * the interface behind, which is exactly the acrylic effect we want when
+		 * the settings window opens. It never gains `position` from us, and being
+		 * viewport-sized, even a fixed dialog re-anchored into it (should the
+		 * filter make the mask a containing block) keeps its on-screen geometry.
+		 */
+		function armDialogMask(dialog) {
+			const mask = findDialogMask(dialog);
+			if (mask === null) {
+				maskDebug.push(`${describeNode(dialog)} → no-mask`);
+				return;
+			}
+			mask.setAttribute(MASK_ATTRIBUTE, "");
+			maskTargets.push(mask);
+			maskCount += 1;
+			maskDebug.push(`${describeNode(mask)} → mask`);
+		}
+
+		/**
+		 * Locate the mask that owns `dialog`: the dialog's own fixed/absolute,
+		 * viewport-covering parent, else the nearest such sibling (the one just
+		 * before the dialog in DOM order wins — the shell paints its mask first).
+		 */
+		function findDialogMask(dialog) {
+			try {
+				const qualifies = (node) => {
+					if (node === null || node === document.body || node === document.documentElement) return false;
+					const style = window.getComputedStyle(node);
+					if (style.position !== "fixed" && style.position !== "absolute") return false;
+					const rect = node.getBoundingClientRect();
+					return rect.width >= window.innerWidth * 0.5 && rect.height >= window.innerHeight * 0.5;
+				};
+				const parent = dialog.parentElement;
+				if (parent === null) return null;
+				if (qualifies(parent)) return parent;
+				let preceding = null;
+				let following = null;
+				let seen = false;
+				for (const sibling of Array.prototype.slice.call(parent.children)) {
+					if (sibling === dialog) {
+						seen = true;
+						continue;
+					}
+					if (!qualifies(sibling)) continue;
+					if (seen) {
+						if (following === null) following = sibling;
+					} else {
+						preceding = sibling;
+					}
+				}
+				return preceding !== null ? preceding : following;
+			} catch {
+				return null;
+			}
 		}
 
 		/** Short node label for diagnostics: `div.classname`. */
@@ -630,6 +715,8 @@ window.__ModuleLoader__.load({
 						frost: frostCount,
 						panels: panelsCount,
 						panelDebug: panelDebug.slice(0, 4),
+						masks: maskCount,
+						maskDebug: maskDebug.slice(0, 4),
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -936,7 +1023,7 @@ window.__ModuleLoader__.load({
 					},
 					label
 				);
-			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
+			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · masks ${typeof snapshot.masks === "number" ? snapshot.masks : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
 			return react.createElement(
 				"div",
 				{ style: rowStyles.group },
@@ -1016,7 +1103,7 @@ window.__ModuleLoader__.load({
 		/** Row mirror store; the theme/change listener is the only writer. */
 		function createRowStore() {
 			return _store.defineStore({
-				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
+				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, masks: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
 				actions: {
 					sync: (d, payload) => {
 						if (typeof payload.revision !== "number" || payload.revision <= d.revision) return;
@@ -1033,6 +1120,7 @@ window.__ModuleLoader__.load({
 								: 0;
 						d.frost = typeof payload.frost === "number" ? payload.frost : 0;
 						d.panels = typeof payload.panels === "number" ? payload.panels : 0;
+						d.masks = typeof payload.masks === "number" ? payload.masks : 0;
 						d.fontSource = typeof payload.fontSource === "string" ? payload.fontSource : "";
 						d.fontCount = typeof payload.fontCount === "number" ? payload.fontCount : 0;
 						d.bgBase = typeof payload.bgBase === "string" ? payload.bgBase : "";
@@ -1108,6 +1196,8 @@ window.__ModuleLoader__.load({
 						frost: frostCount,
 						panels: panelsCount,
 						panelDebug: panelDebug.slice(0, 4),
+						masks: maskCount,
+						maskDebug: maskDebug.slice(0, 4),
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),

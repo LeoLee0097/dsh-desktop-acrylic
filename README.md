@@ -33,6 +33,7 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 | 材质底层                      | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊                                                                          | 强度 暗 30% / 亮 24%，`blur(28px)`                             |
 | 弹出菜单 / 下拉 / 浮层        | 皮肤下发`--dsw-menu-backdrop-filter`，由桌面端自带材质通路渲染                                                                | `blur(24px) saturate(1.15)`                                    |
 | 对话框（设置窗口等）          | 磨砂面板：定位元素走 `isolation` + 绝对定位 `::before`；**静态元素**（设置窗口常见）改把模糊直接加在元素上，但先排除含 `position: fixed` 后代的对话框 | 底色`rgba(…, 0.75)`（25% 透明）+ `blur(30px)`               |
+| 对话框背景遮罩                | 弹窗背后压暗页面的遮罩挂 `backdrop-filter`，透出磨砂主界面；原生 `<dialog>` 走 `::backdrop`；`prefers-reduced-transparency` 时随模糊层一并停用 | `blur(12px) saturate(1.1)`（`--dwa-mask-blur`）             |
 | 工作区主侧栏                  | 均匀颗粒纹理（纯`background-image`，无方向性、无边缘）                                                                        | 暗色 6% / 亮色 14%（明暗感知不对称，故分开设值）                 |
 | 卡片与表格（genui）           | 把卡片库自带的`--tv-*` 调色板桥接到我们的别名 token                                                                           | 22 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框                  |
 | 原生控件                      | `color-scheme` 随主题切换                                                                                                     | 滚动条、复选框等原生部件一并跟随                                 |
@@ -144,6 +145,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
   "hostStats": { "matched": 23, "armed": 0, "skipped": 23 },
   "frost": 1,
   "panels": 1,
+  "masks": 1,
   "fontSource": "probe",
   "fontCount": 18,
   "panelDebug": ["div.ZTP_x 900x600 → flat"],
@@ -163,6 +165,10 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 `panels` 是当前挂着磨砂面板的对话框数量；`panelDebug` 逐条说明**为什么**被挂上或被跳过：
 `div.… 900x600 → flat`、`→ positioned`、`→ skip(static, fixed=3)`、`→ skip(small)`。对话框没效果时，
 先看这一行。
+
+`masks` 是背后遮罩被磨砂的数量；`maskDebug` 记录遮罩命中情况：`div.… → mask`（命中）或
+`div.… → no-mask`（没找到符合「视口级 fixed/absolute 覆盖层」的父级或相邻兄弟——原生
+`<dialog>` 此时仍走 `::backdrop` 规则）。背景没磨砂时先看这一行。
 
 ## 踩过的坑（都写进了构建自检或注释）
 
@@ -198,6 +204,9 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 
 ## 变更记录
 
+- **0.8.5** — 对话框背景遮罩磨砂：弹窗背后压暗页面的遮罩现在挂 `backdrop-filter`（默认
+  `blur(12px) saturate(1.1)`，可调 `--dwa-mask-blur`），透出磨砂主界面；原生 `<dialog>` 走
+  `::backdrop`；诊断新增 `masks` / `maskDebug`，设置行显示 `masks`。
 - **0.8.4** — 对话框磨砂修复：新增静态对话框兜底路径（模糊直接加在元素上，并先排除含 `position: fixed`
   后代的对话框）；诊断新增 `panelDebug` 与 `panels`，设置行也显示 `panels` / `fonts`。
 - **0.8.3** — 文档：中英文双语 README（`README.md` / `README.en.md`）、`CITATION.cff` 与引用模板。
@@ -226,7 +235,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 | 名称 | dsh-desktop-acrylic                               |
 | 副题 | Tokyo Night themes for DeepSeek Harness Desktop   |
 | 作者 | LeoLee0097                                        |
-| 版本 | 0.8.4                                             |
+| 版本 | 0.8.5                                             |
 | 年份 | 2026                                              |
 | 仓库 | https://github.com/LeoLee0097/dsh-desktop-acrylic |
 | 许可 | MIT                                               |
@@ -238,7 +247,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
   author       = {LeoLee0097},
   title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
-  version      = {0.8.4},
+  version      = {0.8.5},
   license      = {MIT},
   url          = {https://github.com/LeoLee0097/dsh-desktop-acrylic},
   note         = {Dark and light themes, acrylic panels, monospace font picker}
@@ -256,7 +265,7 @@ LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 风格
 
 ```text
 LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
-(Version 0.8.4) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
+(Version 0.8.5) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**

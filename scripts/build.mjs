@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -49,6 +49,7 @@ const substitutions = [
   ['/*__PANEL_SELECTORS__*/ []', indent(JSON.stringify(PANEL_SELECTORS, null, 2), 2)],
   ['/*__PANEL_ATTRIBUTE__*/ "data-dwa-panel"', JSON.stringify(PANEL_ATTRIBUTE)],
   ['/*__PANEL_FLAT_ATTRIBUTE__*/ "data-dwa-panel-flat"', JSON.stringify(PANEL_FLAT_ATTRIBUTE)],
+  ['/*__MASK_ATTRIBUTE__*/ "data-dwa-mask"', JSON.stringify(MASK_ATTRIBUTE)],
   ['/*__MONO_FONTS__*/ []', indent(JSON.stringify(MONO_FONTS, null, 2), 2)],
   ['/*__MONO_FONT_BASES__*/ []', indent(JSON.stringify(MONO_FONT_BASES, null, 2), 2)],
   ['/*__MONO_FONT_SUFFIXES__*/ []', indent(JSON.stringify(MONO_FONT_SUFFIXES, null, 2), 2)],
@@ -61,7 +62,7 @@ for (const [marker, replacement] of substitutions) {
   if (!bundle.includes(marker)) throw new Error(`build: placeholder ${marker} not found in src/client.tpl.js`)
   bundle = bundle.replace(marker, replacement)
 }
-for (const marker of ['__SKINS__', '__ACRYLIC__', '__ACRYLIC_ENABLED__', '__BASE_CSS__', '__CHROME_CSS__', '__HOST_SELECTORS__', '__HOST_ATTRIBUTE__', '__FROST_SELECTORS__', '__FROST_ATTRIBUTE__', '__PANEL_SELECTORS__', '__PANEL_ATTRIBUTE__', '__PANEL_FLAT_ATTRIBUTE__', '__MONO_FONTS__', '__MONO_FONT_BASES__', '__MONO_FONT_SUFFIXES__', '__DEFAULT_SKIN__', '__NATIVE_SKIN__']) {
+for (const marker of ['__SKINS__', '__ACRYLIC__', '__ACRYLIC_ENABLED__', '__BASE_CSS__', '__CHROME_CSS__', '__HOST_SELECTORS__', '__HOST_ATTRIBUTE__', '__FROST_SELECTORS__', '__FROST_ATTRIBUTE__', '__PANEL_SELECTORS__', '__PANEL_ATTRIBUTE__', '__PANEL_FLAT_ATTRIBUTE__', '__MASK_ATTRIBUTE__', '__MONO_FONTS__', '__MONO_FONT_BASES__', '__MONO_FONT_SUFFIXES__', '__DEFAULT_SKIN__', '__NATIVE_SKIN__']) {
   if (bundle.includes(`/*${marker}*/`)) throw new Error(`build: placeholder ${marker} survived substitution`)
 }
 
@@ -124,6 +125,15 @@ if (ACRYLIC_ENABLED) {
   }
   if (!captured.CHROME_CSS.includes("[" + PANEL_ATTRIBUTE + "]::before")) {
     throw new Error('build: chrome CSS must frost dialogs through the panel attribute')
+  }
+  if (!captured.CHROME_CSS.includes("[" + MASK_ATTRIBUTE + "]")) {
+    throw new Error('build: chrome CSS must frost the dim mask behind dialogs')
+  }
+  if (!captured.CHROME_CSS.includes('--dwa-mask-blur')) {
+    throw new Error('build: mask blur token missing from the mask rules')
+  }
+  if (!Number.isFinite(Number(captured.SKINS[0].tokens['--dwa-mask-blur'].replace('px', '')))) {
+    throw new Error('build: mask blur token is not a pixel value')
   }
   if (!captured.CHROME_CSS.includes('--dwa-panel-fill')) {
     throw new Error('build: panel fill token missing from the panel rules')
