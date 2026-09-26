@@ -9,6 +9,8 @@ Both skins are **real themes registered into the built-in theme runtime** (`ctx.
 switching a theme switches the runtime preference itself — no attribute toggles, no after-the-fact CSS
 overrides.
 
+> **DSH Desktop (beta) download**: [deepseek-harness discussions](https://github.com/deepseek-ai/deepseek-harness/discussions/7667?sort=new#discussioncomment-18598677).
+
 > If you use this project in a paper, report or another project, please cite it — templates are in
 > [Citation and license](#citation-and-license), and a machine-readable [`CITATION.cff`](CITATION.cff)
 > is included (GitHub renders it as "Cite this repository").
@@ -61,6 +63,32 @@ dsh plugin --profile desktop add github:LeoLee0097/dsh-desktop-acrylic
 # from a local directory (-w is required: the profile directory is a pnpm workspace root)
 dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 ```
+
+### Web (web profile)
+
+> **Disclaimer**: the developer uses this plugin primarily with the DSH Desktop beta and **has not
+> tested it on the web build**. If something misbehaves, include the settings-row diagnostics
+> (`preference` / `matched` / `masks` and friends) when reporting it.
+
+The same plugin installs into the web profile as-is — the desktop app already runs on top of
+`@deepseek-ai/dsh-web-app`, and the browser half is declared with `platform: "web"`. Only the profile
+name changes:
+
+```sh
+dsh plugin --profile web add github:LeoLee0097/dsh-desktop-acrylic
+# or a local directory
+dsh plugin --profile web add -w /absolute/path/to/dsh-desktop-acrylic
+```
+
+How the web build differs (the client degrades automatically; nothing to configure):
+
+- **Durable state**: falls back to `localStorage` when the host route is absent — on the web that
+  origin is stable, so this layer is actually more reliable than on desktop;
+- **Font list**: the host directory scan is unavailable, leaving renderer-side probing only (candidate
+  catalog under "Font detection" below);
+- **Same visuals**: the material base, frosted panels and the mask blur are all in-page work and never
+  relied on a window material; if a web build renames the DOM classes, the candidate selectors simply
+  match nothing — the `matched` / `masks` diagnostics report 0 honestly.
 
 Quit DSH Desktop **completely** and start it again. After that, reloading the renderer alone is enough
 to pick up a new client bundle.

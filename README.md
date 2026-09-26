@@ -8,6 +8,8 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 两套皮肤都是**注册进内置主题运行时的真实主题**（`ctx.theme.register`），因此切换主题就是切换
 运行时偏好本身，不依赖属性开关或事后 CSS 覆盖。
 
+> **DSH Desktop 测试版下载**：[deepseek-harness 讨论区](https://github.com/deepseek-ai/deepseek-harness/discussions/7667?sort=new#discussioncomment-18598677)。
+
 > 若你在论文、报告或其它项目中使用本项目，请引用它 —— 引用模板见[引用与许可](#引用与许可)，
 > 仓库根目录也提供了机器可读的 [`CITATION.cff`](CITATION.cff)（GitHub 会据此显示 "Cite this repository"）。
 
@@ -57,6 +59,29 @@ dsh plugin --profile desktop add github:LeoLee0097/dsh-desktop-acrylic
 # 从本地目录（-w 必需，profile 目录本身是 pnpm workspace 根）
 dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 ```
+
+安装后**完全退出并重启** DSH Desktop。此后单独重载渲染进程也会重新拉取客户端包。
+
+### 网页端（web profile）
+
+> **声明**：开发者主要在 DSH Desktop 内测版中使用本插件，**未在网页端进行过测试**。如遇异常，
+> 请把设置行诊断信息（`preference` / `matched` / `masks` 等）一并反馈。
+
+同一插件可直接装到 web profile——桌面端本来就跑在 `@deepseek-ai/dsh-web-app` 上，浏览器半边
+按 `platform: "web"` 声明，安装命令只是把 profile 换掉：
+
+```sh
+dsh plugin --profile web add github:LeoLee0097/dsh-desktop-acrylic
+# 或本地目录
+dsh plugin --profile web add -w /absolute/path/to/dsh-desktop-acrylic
+```
+
+网页端与桌面端的差异（客户端已自动降级，无需配置）：
+
+- **持久状态**：宿主路由不可用时回退 `localStorage`——网页端 origin 固定，这层反而比桌面端更稳；
+- **字体列表**：宿主目录扫描不可用，只剩渲染进程探测（候选目录见下文「字体探测」）；
+- **视觉效果一致**：材质底层、磨砂面板、遮罩模糊全部在页面内完成，本来就不依赖窗口材质；
+  若 web 构建的 DOM 类名不同导致候选选择器失配，诊断行的 `matched` / `masks` 会如实显示 0。
 
 安装后**完全退出并重启** DSH Desktop。此后单独重载渲染进程也会重新拉取客户端包。
 
