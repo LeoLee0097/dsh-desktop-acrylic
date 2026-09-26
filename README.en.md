@@ -23,6 +23,11 @@ overrides.
 
 ![Tokyo Night light theme (welcome page)](snaplight.png)
 
+**Settings window** — frosted panel over a blurred backdrop (dark; the "Tokyo Night theme" settings
+row and the `masks 1` diagnostic are visible):
+
+![Settings window: frosted panel with a blurred backdrop mask](setting.png)
+
 ---
 
 ## Features
@@ -116,7 +121,7 @@ dsh-desktop-acrylic/
 ├── docs/desktop-window-material.md
 ├── cordis.patch.yml       # profile patch layer: inserts one loader entry
 ├── package.json           # declares dsh.bundle.patch + dsh.client.inject
-└── LICENSE / README.md / README.en.md / CITATION.cff / .gitignore / .gitattributes / snapdark.png / snaplight.png
+└── LICENSE / README.md / README.en.md / CITATION.cff / .gitignore / .gitattributes / snapdark.png / snaplight.png / setting.png
 ```
 
 ```sh

@@ -21,6 +21,10 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 ![Tokyo Night 亮色主题（欢迎页）](snaplight.png)
 
+**设置窗口** —— 磨砂面板与背景遮罩模糊（暗色；可见「Tokyo Night 主题」设置行与 `masks 1` 诊断）：
+
+![设置窗口：磨砂面板 + 背景遮罩模糊](setting.png)
+
 ---
 
 ## 能力一览
@@ -108,7 +112,7 @@ dsh-desktop-acrylic/
 ├── docs/desktop-window-material.md
 ├── cordis.patch.yml       # profile 补丁层：insert 一个 loader 条目
 ├── package.json           # dsh.bundle.patch + dsh.client.inject 两处声明
-└── LICENSE / README.md / .gitignore / .gitattributes / snapdark.png / snaplight.png
+└── LICENSE / README.md / .gitignore / .gitattributes / snapdark.png / snaplight.png / setting.png
 ```
 
 ```sh
