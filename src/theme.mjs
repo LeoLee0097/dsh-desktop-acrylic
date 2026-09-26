@@ -286,12 +286,10 @@ function buildSurfaceTokens(p) {
 function buildFixedTokens(p) {
   const dark = p.colorScheme === 'dark'
   return {
-    // Opaque page base for the LIGHT palette only: dark text needs a known
-    // ground. The dark palette stays truly transparent so the effect is real.
-    // Opaque page base for the DARK palette only: light text needs a known
-    // ground. The light palette keeps a mostly transparent base so its surfaces
-    // can show the material field — its text is dark, and a bright window
-    // backdrop behind it costs nothing in contrast.
+    // Page base: the LIGHT palette gets a mostly-opaque ground, because its
+    // dark text needs a known backdrop. The DARK palette stays truly
+    // transparent so the effect is real — its light text survives any
+    // backdrop, and the translucent surfaces can show the material field.
     '--dwa-root-base': dark ? 'transparent' : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),

@@ -172,6 +172,8 @@ window.__ModuleLoader__.load({
 		let blurHostCount = 0;
 		/** Number of containers carrying the imitation frost texture. */
 		let frostCount = 0;
+		/** Number of dialogs currently frosted as panels. */
+		let panelsCount = 0;
 		/** Mutation observer + debounce timer for late-mounted surfaces. */
 		let frostObserver = null;
 		let rearmTimer = null;
@@ -242,6 +244,8 @@ window.__ModuleLoader__.load({
 				for (const node of Array.prototype.slice.call(nodes)) {
 					node.removeAttribute(HOST_ATTRIBUTE);
 					node.removeAttribute(FROST_ATTRIBUTE);
+					node.removeAttribute(PANEL_ATTRIBUTE);
+					node.removeAttribute(PANEL_FLAT_ATTRIBUTE);
 				}
 			} catch {
 				// nothing to clean up
@@ -250,7 +254,8 @@ window.__ModuleLoader__.load({
 			blurHostStats = { matched: 0, armed: 0, skipped: 0 };
 			frostCount = 0;
 			panelsCount = 0;
-			fontCount = fontSource === "host" ? fontCount : MONO_FONTS.length;
+			panelDebug = [];
+			frostTargets = [];
 		}
 		/**
 		 * Arm the imitation frost.
@@ -428,6 +433,7 @@ window.__ModuleLoader__.load({
 			} else {
 				root.removeAttribute(ARM_ATTRIBUTE);
 				disarmBlurHosts();
+				stopFrostObserver();
 				unmountStyle("chrome");
 			}
 		}
@@ -1057,6 +1063,8 @@ window.__ModuleLoader__.load({
 
 		function applyInner(ctx) {
 			themeService = ctx.theme;
+			/** Set once the plugin is disposed: late async callbacks bail out. */
+			let disposed = false;
 
 			// Register skin by skin: one bad palette must not cost the other theme.
 			const disposers = [];
@@ -1207,6 +1215,7 @@ window.__ModuleLoader__.load({
 			}, REASSERT_DELAY_MS);
 
 			hydrate().then(() => {
+				if (disposed) return;
 				applyChosen();
 				sync();
 				syncRow((revision += 1));
@@ -1214,8 +1223,13 @@ window.__ModuleLoader__.load({
 			});
 
 			ctx.effect(() => () => {
+				disposed = true;
 				clearTimeout(bootTimer);
 				if (reportTimer !== null) clearTimeout(reportTimer);
+				if (rearmTimer !== null) {
+					clearTimeout(rearmTimer);
+					rearmTimer = null;
+				}
 				syncChrome(false);
 				unmountStyle("font");
 				styleElements.chrome = null;

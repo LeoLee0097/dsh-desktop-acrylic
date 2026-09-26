@@ -13,6 +13,16 @@ overrides.
 > [Citation and license](#citation-and-license), and a machine-readable [`CITATION.cff`](CITATION.cff)
 > is included (GitHub renders it as "Cite this repository").
 
+## Screenshots
+
+**Dark** — welcome page:
+
+![Tokyo Night dark theme (welcome page)](snapdark.png)
+
+**Light** — welcome page:
+
+![Tokyo Night light theme (welcome page)](snaplight.png)
+
 ---
 
 ## Features
@@ -105,7 +115,7 @@ dsh-desktop-acrylic/
 ├── docs/desktop-window-material.md
 ├── cordis.patch.yml       # profile patch layer: inserts one loader entry
 ├── package.json           # declares dsh.bundle.patch + dsh.client.inject
-└── LICENSE / README.md / README.en.md / CITATION.cff / .gitignore / .gitattributes
+└── LICENSE / README.md / README.en.md / CITATION.cff / .gitignore / .gitattributes / snapdark.png / snaplight.png
 ```
 
 ```sh

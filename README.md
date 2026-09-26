@@ -11,6 +11,16 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 > 若你在论文、报告或其它项目中使用本项目，请引用它 —— 引用模板见[引用与许可](#引用与许可)，
 > 仓库根目录也提供了机器可读的 [`CITATION.cff`](CITATION.cff)（GitHub 会据此显示 "Cite this repository"）。
 
+## 效果预览
+
+**暗色** —— 欢迎页：
+
+![Tokyo Night 暗色主题（欢迎页）](snapdark.png)
+
+**亮色** —— 欢迎页：
+
+![Tokyo Night 亮色主题（欢迎页）](snaplight.png)
+
 ---
 
 ## 能力一览
@@ -97,7 +107,7 @@ dsh-desktop-acrylic/
 ├── docs/desktop-window-material.md
 ├── cordis.patch.yml       # profile 补丁层：insert 一个 loader 条目
 ├── package.json           # dsh.bundle.patch + dsh.client.inject 两处声明
-└── LICENSE / README.md / .gitignore / .gitattributes
+└── LICENSE / README.md / .gitignore / .gitattributes / snapdark.png / snaplight.png
 ```
 
 ```sh
