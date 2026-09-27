@@ -158,16 +158,23 @@ node scripts/build.mjs     # 或 npm run build
 插件把运行实况上报给宿主路由，写入 `~/.dsh/dark-acrylic-state.json`：
 
 ```sh
-curl http://127.0.0.1:<端口>/dark-acrylic/state     # 状态与上报
-curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（host 扫描）
+curl http://127.0.0.1:<端口>/dark-acrylic/state       # 状态与上报
+curl http://127.0.0.1:<端口>/dark-acrylic/fonts       # 本机字体目录（host 扫描）
+curl -X PUT http://127.0.0.1:<端口>/dark-acrylic/preference \
+  -H 'content-type: application/json' \
+  -d '{"preference": "tokyo-night"}'                  # 主题偏好落盘到 profile 补丁层
+curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补丁层的 ui-theme 偏好
 ```
 
 ```json
 {
   "version": 2,
   "plugin": "tokyo-night-theme",
+  "themes": ["tokyo-night", "tokyo-night-day"],
   "chosen": "tokyo-night",
   "acrylic": true,
+  "font": "LXGW WenKai Mono",
+  "codeFont": "",
   "preference": "tokyo-night",
   "chrome": true,
   "hosts": 0,
@@ -175,9 +182,12 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
   "frost": 1,
   "panels": 1,
   "masks": 1,
+  "heals": 0,
+  "layer": "written",
   "fontSource": "probe",
   "fontCount": 18,
   "panelDebug": ["div.ZTP_x 900x600 → flat"],
+  "maskDebug": ["div.aGz_z → mask"],
   "computed": {
     "bgBase": "rgba(22, 22, 30, 0.1)",
     "sidebar": "rgba(15, 16, 23, 0.1)",
@@ -189,7 +199,9 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 ```
 
 `hosts` / `hostStats` 用来解释「为什么某处没有磨砂」：`matched` 是候选容器数，`armed` 是成功
-挂上模糊层的数量——布局列普遍是静态元素，被守卫拒绝是正常结果。
+挂上模糊层的数量——布局列普遍是静态元素，被守卫拒绝是正常结果。`heals` 是静默重置侦测触发恢复
+的次数（健康 shell 中恒为 0，持续大于 0 说明 shell 在反复重置偏好）；`layer` 是偏好落盘状态
+（`written` / `unchanged` / `error` / `unavailable`）。
 
 `panels` 是当前挂着磨砂面板的对话框数量；`panelDebug` 逐条说明**为什么**被挂上或被跳过：
 `div.… 900x600 → flat`、`→ positioned`、`→ skip(static, fixed=3)`、`→ skip(small)`。对话框没效果时，
@@ -221,6 +233,11 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 9. **对话框不一定是定位元素**：模糊若只挂在 `::before` 上，静态面板（设置窗口就是这种）会被守卫
    整体跳过、表现为「完全没效果」。要覆盖两种结构，就得有一条把模糊直接加在元素上的兜底路径，
    并且先排除含 `position: fixed` 后代的对话框——那类后代正是滤镜会重新锚定的对象。
+10. **运行时主题偏好只在内存里，且 shell 重建后会迟到地重放它自存的值**：切换模型、思考强度、
+    开关设置窗口都会重建客户端树，把偏好重置回 profile 默认（`system`）——且不发可靠事件、不重读
+    补丁层（已验证：重置从不写 `cordis.patch.yml`）；它应用自存偏好的时机在我们插件 `apply` **之后**，
+    所以启动时 `setTheme` 总是先赢后输。对策就是 0.8.6 的三层恢复网：偏好落盘进补丁层、
+    DOM 突变 / 点击事件驱动 heal、`theme/change('system')` 签名经回读补丁层判定后再延迟重断言。
 
 ## 已知边界
 
@@ -233,6 +250,17 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 
 ## 变更记录
 
+- **0.8.6** — 偏好落盘 + 静默重置侦测：主题选择写入 profile 补丁层的 ui-theme 配置（与原生主题
+  选择同一落点），组合树重初始化时重放，跨重启不丢；但 shell 在切换模型 / 思考强度、关闭设置菜单
+  时会重建客户端树、把内存偏好重置回 `system` 且不重读补丁层（已验证：重置从不写补丁文件）。重建
+  必然改动 DOM，因此挂了一个 DOM 突变观察者（250ms 去抖 + 廉价预检，纯事件驱动、零轮询开销），
+  每次 chrome 同步时重新锚定到当前根元素（防止整树替换后观察者挂在已分离节点上静默死亡）；且
+  shell 是在我们插件 apply **之后**才应用它自存偏好的——收到重置签名 `theme/change('system')` 后不
+  即时反击（打不赢还会践踏用户刚做的真实选择），而是等 1.5s 经 `GET /dark-acrylic/preference` 回读
+  补丁层判定：层值仍等于已存选择即为重置，延迟重断言（1.5s / 3.5s 两拍复查）并回写补丁层加固；层值
+  已是 `system` 即为用户在原生界面真选默认，镜像收手。pointerdown 监听作为不改变 DOM 的重置的第
+  二触发器。原生界面改选其他主题会被镜像记录，启动与恢复均不强行覆盖（不影响用户自由选择）。
+  诊断新增 `heals` 计数与 `layer` 落盘状态（设置行同时显示 `heals`）。
 - **0.8.5** — 对话框背景遮罩磨砂：弹窗背后压暗页面的遮罩现在挂 `backdrop-filter`（默认
   `blur(12px) saturate(1.1)`，可调 `--dwa-mask-blur`），透出磨砂主界面；原生 `<dialog>` 走
   `::backdrop`；诊断新增 `masks` / `maskDebug`，设置行显示 `masks`。
@@ -264,7 +292,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
 | 名称 | dsh-desktop-acrylic                               |
 | 副题 | Tokyo Night themes for DeepSeek Harness Desktop   |
 | 作者 | LeoLee0097                                        |
-| 版本 | 0.8.5                                             |
+| 版本 | 0.8.6                                             |
 | 年份 | 2026                                              |
 | 仓库 | https://github.com/LeoLee0097/dsh-desktop-acrylic |
 | 许可 | MIT                                               |
@@ -276,7 +304,7 @@ curl http://127.0.0.1:<端口>/dark-acrylic/fonts     # 本机字体目录（hos
   author       = {LeoLee0097},
   title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
-  version      = {0.8.5},
+  version      = {0.8.6},
   license      = {MIT},
   url          = {https://github.com/LeoLee0097/dsh-desktop-acrylic},
   note         = {Dark and light themes, acrylic panels, monospace font picker}
@@ -294,7 +322,7 @@ LeoLee0097. dsh-desktop-acrylic: DeepSeek Harness Desktop 的 Tokyo Night 风格
 
 ```text
 LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
-(Version 0.8.5) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
+(Version 0.8.6) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**

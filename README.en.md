@@ -172,16 +172,23 @@ The build refuses to write anything unless four groups of checks pass:
 The plugin reports its live state to a host route, which writes `~/.dsh/dark-acrylic-state.json`:
 
 ```sh
-curl http://127.0.0.1:<port>/dark-acrylic/state     # state and live report
-curl http://127.0.0.1:<port>/dark-acrylic/fonts     # installed font catalog (host scan)
+curl http://127.0.0.1:<port>/dark-acrylic/state       # state and live report
+curl http://127.0.0.1:<port>/dark-acrylic/fonts       # installed font catalog (host scan)
+curl -X PUT http://127.0.0.1:<port>/dark-acrylic/preference \
+  -H 'content-type: application/json' \
+  -d '{"preference": "tokyo-night"}'                  # persist the theme preference into the profile patch layer
+curl http://127.0.0.1:<port>/dark-acrylic/preference   # read back the ui-theme preference from every profile patch layer
 ```
 
 ```json
 {
   "version": 2,
   "plugin": "tokyo-night-theme",
+  "themes": ["tokyo-night", "tokyo-night-day"],
   "chosen": "tokyo-night",
   "acrylic": true,
+  "font": "JetBrainsMono Nerd Font",
+  "codeFont": "",
   "preference": "tokyo-night",
   "chrome": true,
   "hosts": 0,
@@ -189,8 +196,12 @@ curl http://127.0.0.1:<port>/dark-acrylic/fonts     # installed font catalog (ho
   "frost": 1,
   "panels": 1,
   "masks": 1,
+  "heals": 0,
+  "layer": "written",
   "fontSource": "probe",
   "fontCount": 18,
+  "panelDebug": ["div.ZTP_x 900x600 → flat"],
+  "maskDebug": ["div.aGz_z → mask"],
   "computed": {
     "bgBase": "rgba(22, 22, 30, 0.1)",
     "sidebar": "rgba(15, 16, 23, 0.1)",
@@ -200,6 +211,11 @@ curl http://127.0.0.1:<port>/dark-acrylic/fonts     # installed font catalog (ho
   "at": "…"
 }
 ```
+
+`heals` counts how often the silent-reset detection had to re-assert the theme (0 in a
+healthy shell; a persistently rising value means the shell keeps resetting the preference);
+`layer` reports the last preference-layer write outcome (`written` / `unchanged` /
+`error` / `unavailable`).
 
 `panels` counts the dialogs currently carrying the frosted panel, and `panelDebug` states *why* each
 dialog was armed or skipped — `div.… 900x600 → flat`, `→ positioned`, `→ skip(static, fixed=3)` or
@@ -243,6 +259,14 @@ elements, so being rejected by the guard is the expected outcome, not a failure.
    entirely and simply shows no effect. Covering both structures needs a fallback that puts the blur on
    the element itself — after excluding dialogs with `position: fixed` descendants, which are the ones
    a filter would re-anchor.
+10. **The runtime theme preference lives in memory only, and the shell re-applies its own stored
+    preference *after* our plugin on every rebuild.** Switching the model, the reasoning effort, or
+    the settings window rebuilds the client tree and resets the preference to the profile default
+    (`system`) — without a reliable event and without re-reading the patch layer (verified: a reset
+    never writes `cordis.patch.yml`). Boot-time `setTheme` therefore wins first and loses second.
+    The 0.8.6 recovery net is the answer: persist the preference into the patch layer, heal from
+    DOM-mutation / pointerdown triggers, and on the `theme/change('system')` signature verify
+    against the patch layer before re-asserting on a delay.
 
 ## Known limits
 
@@ -256,6 +280,28 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.8.6** — Persisted preference + silent-reset detection: the theme choice is
+  written into the ui-theme entry of the profile patch layer — the same place the
+  native theme picker writes — so the composed tree replays it across restarts.
+  Live, however, the shell rebuilds its client tree (after a model / effort click,
+  and when the settings window closes), resets its in-memory preference to
+  `system` and never re-reads the layer (verified: a reset never writes the patch
+  file). The rebuild always mutates the DOM, so a mutation observer (250ms debounce
+  + cheap pre-check, purely event-driven, zero polling) catches the reset the
+  moment it lands; the observer is re-anchored to the current root on every chrome
+  sync so a full-tree replacement cannot leave it silently dead on a detached
+  node. Crucially, the shell applies its own stored preference *after* our plugin
+  on every rebuild — so on the reset signature `theme/change('system')` the plugin
+  does not fight back instantly (it would lose and would stomp a genuine pick made
+  moments earlier); instead it waits 1.5s and reads the layer back via
+  `GET /dark-acrylic/preference`: a layer that still holds our choice means it was
+  a reset — re-assert on a 1.5s / 3.5s double pass and reinforce the layer — while
+  a layer that already says `system` means the user genuinely picked 默认 natively,
+  which is mirrored and left alone. A pointerdown listener is a second trigger for
+  resets that change nothing in the DOM. Other choices made through the shell's
+  own UI are mirrored and never overridden by boot or recovery. New diagnostics
+  `heals` counter and `layer` write status (`heals` also shown on the settings
+  row).
 - **0.8.5** — Frosted dialog backdrop: the dim mask behind an open modal now carries a
   `backdrop-filter` (default `blur(12px) saturate(1.1)`, tunable via `--dwa-mask-blur`), so the
   interface shows through frosted; native `<dialog>` elements get `::backdrop`; new diagnostics
@@ -291,7 +337,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 | Name | dsh-desktop-acrylic |
 | Subtitle | Acrylic Tokyo Night style themes for DeepSeek Harness Desktop |
 | Author | LeoLee0097 |
-| Version | 0.8.5 |
+| Version | 0.8.6 |
 | Year | 2026 |
 | Repository | https://github.com/LeoLee0097/dsh-desktop-acrylic |
 | License | MIT |
@@ -303,7 +349,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
   author       = {LeoLee0097},
   title        = {{dsh-desktop-acrylic}: Acrylic {Tokyo} Night style themes for {DeepSeek} {Harness} Desktop},
   year         = {2026},
-  version      = {0.8.5},
+  version      = {0.8.6},
   license      = {MIT},
   url          = {https://github.com/LeoLee0097/dsh-desktop-acrylic},
   note         = {Dark and light themes, acrylic panels, monospace font picker}
@@ -314,7 +360,7 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ```text
 LeoLee0097. (2026). dsh-desktop-acrylic: Acrylic Tokyo Night style themes for DeepSeek Harness Desktop
-(Version 0.8.5) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
+(Version 0.8.6) [Computer software]. https://github.com/LeoLee0097/dsh-desktop-acrylic
 ```
 
 **MLA 9**

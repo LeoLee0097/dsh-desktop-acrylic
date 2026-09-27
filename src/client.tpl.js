@@ -75,8 +75,19 @@ window.__ModuleLoader__.load({
 		const STATE_ROUTE = "/dark-acrylic/state";
 		/** Host route: families actually installed on this machine. */
 		const FONTS_ROUTE = "/dark-acrylic/fonts";
+		/** Host route: persist the theme preference into the profile patch layer. */
+		const PREFERENCE_ROUTE = "/dark-acrylic/preference";
 		/** Boot-time re-assert delay (other theme plugins restore first). */
 		const REASSERT_DELAY_MS = 800;
+		/** Debounce for the click-driven safety check after user gestures. */
+		const HEAL_DEBOUNCE_MS = 600;
+		/**
+		 * Delays for verifying a `system` theme/change against the patch layer
+		 * before re-asserting (the shell applies its own stored preference
+		 * *after* our plugin on every rebuild, so reacting instantly would both
+		 * lose the fight and stomp a genuine native pick made moments earlier).
+		 */
+		const RESET_RECHECK_DELAYS = [1500, 3500];
 		/** Debounce for status reports. */
 		const REPORT_DEBOUNCE_MS = 300;
 		/** Root attribute that arms the acrylic layer. */
@@ -178,6 +189,8 @@ window.__ModuleLoader__.load({
 		let panelsCount = 0;
 		/** Number of dim masks currently frosted behind dialogs. */
 		let maskCount = 0;
+		/** How often the heal had to re-assert the theme or re-mount chrome. */
+		let healsCount = 0;
 		/** What the dialog pass frosted, for diagnostics (short list). */
 		let maskTargets = [];
 		let maskDebug = [];
@@ -186,6 +199,12 @@ window.__ModuleLoader__.load({
 		let rearmTimer = null;
 		/** Set by applyInner: debounced status report. */
 		let reportRequest = null;
+		/**
+		 * The recovery net (module-scope wiring). `request` is the debounced
+		 * heal assigned by applyInner; the observer and gesture listener are
+		 * the two event-driven triggers that funnel into it.
+		 */
+		const recovery = { request: null, observer: null, observerTimer: null, gestureHandler: null };
 		/** What the dialog pass textured, for diagnostics (short list). */
 		let frostTargets = [];
 		/** Diagnostics: how many candidates matched, armed, or were skipped. */
@@ -195,6 +214,8 @@ window.__ModuleLoader__.load({
 		/** Which catalog the font dropdowns use, and how many families it holds. */
 		let fontSource = "builtin";
 		let fontCount = 0;
+		/** Outcome of the last preference-layer write ("written" / "unchanged" / "error" / "unavailable"). */
+		let layerStatus = "unavailable";
 
 		/**
 		 * Arm the blur layer, element by element.
@@ -489,6 +510,77 @@ window.__ModuleLoader__.load({
 			frostObserver = null;
 		}
 
+		/**
+		 * The recovery net.
+		 *
+		 * The shell can drop the runtime theme preference without us being able
+		 * to see the cause directly, so three event-driven triggers watch for
+		 * it (verifyResetThenAct handles the theme/change-emitting case; see
+		 * applyInner):
+		 *
+		 * - a DOM mutation observer — a tree rebuild always mutates the DOM,
+		 *   so a silent reset is caught the moment it lands;
+		 * - a pointerdown listener — covers resets that change nothing in the
+		 *   DOM, and the click is always the gesture that precedes a reset;
+		 *
+		 * Both funnel through recoveryProbe: a cheap pre-check (one getTheme
+		 * read) so the expensive heal only runs when the preference or chrome
+		 * actually went missing. Everything is event-driven — zero idle work,
+		 * no polling — and healsCount stays 0 in a healthy shell.
+		 */
+		function recoveryProbe() {
+			if (recovery.request === null) return;
+			const chosen = readChosen();
+			if (!SKINS.some((skin) => skin.id === chosen)) return;
+			if (preferenceOf() === chosen && isChromeMounted()) return;
+			recovery.request();
+		}
+
+		function recoveryStartObserver() {
+			if (recovery.observer !== null) return;
+			try {
+				recovery.observer = new MutationObserver(() => {
+					if (recovery.observerTimer !== null) clearTimeout(recovery.observerTimer);
+					recovery.observerTimer = setTimeout(() => {
+						recovery.observerTimer = null;
+						recoveryProbe();
+					}, 250);
+				});
+				recovery.observer.observe(document.documentElement, { childList: true, subtree: true });
+			} catch {
+				recovery.observer = null;
+			}
+		}
+
+		function recoveryStopObserver() {
+			if (recovery.observer === null) return;
+			try {
+				recovery.observer.disconnect();
+			} catch {
+				// already gone
+			}
+			recovery.observer = null;
+			if (recovery.observerTimer !== null) {
+				clearTimeout(recovery.observerTimer);
+				recovery.observerTimer = null;
+			}
+		}
+
+		function recoveryAttachGestures() {
+			if (recovery.gestureHandler !== null) return;
+			// The debounce lives in recovery.request (scheduleHealCheck), so the
+			// handler itself stays a thin probe — identical timing to wiring
+			// pointerdown straight to the debounced heal.
+			recovery.gestureHandler = () => recoveryProbe();
+			document.addEventListener("pointerdown", recovery.gestureHandler, { capture: true, passive: true });
+		}
+
+		function recoveryDetachGestures() {
+			if (recovery.gestureHandler === null) return;
+			document.removeEventListener("pointerdown", recovery.gestureHandler, { capture: true });
+			recovery.gestureHandler = null;
+		}
+
 		function scheduleRearm() {
 			if (rearmTimer !== null) clearTimeout(rearmTimer);
 			rearmTimer = setTimeout(() => {
@@ -504,6 +596,11 @@ window.__ModuleLoader__.load({
 			const root = document.documentElement;
 			if (active) {
 				root.setAttribute(ARM_ATTRIBUTE, "");
+				// Re-anchor the recovery observer: a tree rebuild may have replaced
+				// the root element, which would leave the old observer silently
+				// dead on a detached node.
+				recoveryStopObserver();
+				recoveryStartObserver();
 				if (ACRYLIC_ENABLED && readAcrylic()) {
 					mountStyle("chrome", CHROME_STYLE_ID, `${BASE_CSS}\n${CHROME_CSS}`);
 					armBlurHosts();
@@ -519,6 +616,7 @@ window.__ModuleLoader__.load({
 				root.removeAttribute(ARM_ATTRIBUTE);
 				disarmBlurHosts();
 				stopFrostObserver();
+				recoveryStopObserver();
 				unmountStyle("chrome");
 			}
 		}
@@ -694,6 +792,35 @@ window.__ModuleLoader__.load({
 			}
 		}
 
+		/**
+		 * Persist the theme preference into the profile patch layer — the same
+		 * key the shell's own theme picker writes (see the host half). The
+		 * composed tree replays this layer on every re-initialization, so the
+		 * choice survives the resets that used to kill it; any later native
+		 * choice rewrites the same key and wins, so user freedom is intact.
+		 * Fire-and-forget: the outcome lands in `layerStatus` for diagnostics.
+		 */
+		function writeLayerPreference(value) {
+			layerStatus = "pending";
+			void fetch(PREFERENCE_ROUTE, {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ preference: value })
+			})
+				.then((response) => (response.ok ? response.json() : null))
+				.then((payload) => {
+					layerStatus =
+						payload !== null && typeof payload === "object" && payload.ok === true
+							? Array.isArray(payload.changed) && payload.changed.length > 0
+								? "written"
+								: "unchanged"
+							: "error";
+				})
+				.catch(() => {
+					layerStatus = "unavailable";
+				});
+		}
+
 		/** Push a status snapshot; diagnostics only, never throws. */
 		async function report() {
 			try {
@@ -717,6 +844,8 @@ window.__ModuleLoader__.load({
 						panelDebug: panelDebug.slice(0, 4),
 						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
+						heals: healsCount,
+						layer: layerStatus,
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -1023,7 +1152,7 @@ window.__ModuleLoader__.load({
 					},
 					label
 				);
-			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · masks ${typeof snapshot.masks === "number" ? snapshot.masks : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
+			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · masks ${typeof snapshot.masks === "number" ? snapshot.masks : 0} · heals ${typeof snapshot.heals === "number" ? snapshot.heals : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
 			return react.createElement(
 				"div",
 				{ style: rowStyles.group },
@@ -1103,7 +1232,7 @@ window.__ModuleLoader__.load({
 		/** Row mirror store; the theme/change listener is the only writer. */
 		function createRowStore() {
 			return _store.defineStore({
-				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, masks: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
+				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, masks: 0, heals: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
 				actions: {
 					sync: (d, payload) => {
 						if (typeof payload.revision !== "number" || payload.revision <= d.revision) return;
@@ -1121,6 +1250,7 @@ window.__ModuleLoader__.load({
 						d.frost = typeof payload.frost === "number" ? payload.frost : 0;
 						d.panels = typeof payload.panels === "number" ? payload.panels : 0;
 						d.masks = typeof payload.masks === "number" ? payload.masks : 0;
+						d.heals = typeof payload.heals === "number" ? payload.heals : 0;
 						d.fontSource = typeof payload.fontSource === "string" ? payload.fontSource : "";
 						d.fontCount = typeof payload.fontCount === "number" ? payload.fontCount : 0;
 						d.bgBase = typeof payload.bgBase === "string" ? payload.bgBase : "";
@@ -1198,6 +1328,7 @@ window.__ModuleLoader__.load({
 						panelDebug: panelDebug.slice(0, 4),
 						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
+						heals: healsCount,
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -1226,10 +1357,83 @@ window.__ModuleLoader__.load({
 				syncFont(readFont("font"), readFont("code"), isOursActive());
 			};
 
+			/**
+			 * A `theme/change` carrying exactly `system` while a skin is stored
+			 * is ambiguous: it is the shell's reset signature, but it is also
+			 * what a genuine native pick of 默认 looks like. The shell never
+			 * writes the patch layer on a reset, while a real pick gets
+			 * persisted there — so read the layer back after a grace period
+			 * and only re-assert when it still backs our choice. Each pass
+			 * re-checks, so a late-persisted genuine pick still wins. The
+			 * re-assert itself is heal() — the same worker the recovery net
+			 * uses — so every recovery is counted and reported identically.
+			 */
+			const resetTimers = [];
+			const verifyResetThenAct = (stored) => {
+				for (const delay of RESET_RECHECK_DELAYS) {
+					const timer = setTimeout(() => {
+						if (disposed) return;
+						void fetch(PREFERENCE_ROUTE)
+							.then((response) => (response.ok ? response.json() : null))
+							.then((payload) => {
+								if (disposed) return;
+								const values =
+									payload !== null && typeof payload === "object" && Array.isArray(payload.values)
+										? payload.values
+										: null;
+								const genuine =
+									values !== null &&
+									values.length > 0 &&
+									!values.includes(stored) &&
+									values.every((value) => value === NATIVE_SKIN);
+								if (genuine) {
+									// The shell persisted the pick: the user really
+									// chose 默认 — mirror it and stand down.
+									persist({ chosen: NATIVE_SKIN });
+									return;
+								}
+								heal();
+							})
+							.catch(() => {
+								if (!disposed) heal();
+							});
+					}, delay);
+					resetTimers.push(timer);
+				}
+			};
+
 			ctx.on("theme/change", (snapshot) => {
 				sync();
 				revision += 1;
 				syncRow(typeof snapshot === "object" && snapshot !== null && typeof snapshot.revision === "number" ? snapshot.revision : revision);
+				// Mirror the effective preference into our stored choice: if the
+				// user picks another theme through the shell's own UI, we must not
+				// override it on the next boot — and when they pick ours (through
+				// either UI), the stored value matches again automatically.
+				//
+				// One value is ambiguous, though: a preference of exactly
+				// `system` is both the shell's *reset signature* (rebuilds replay
+				// the profile default) and a genuine native pick of 默认.
+				// Mirroring it blindly would poison the stored state; ignoring it
+				// would let the reset win — so it is verified against the patch
+				// layer instead (see verifyResetThenAct).
+				const effective =
+					snapshot !== null && typeof snapshot === "object" && typeof snapshot.preference === "string"
+						? snapshot.preference
+						: preferenceOf();
+				const stored = readChosen();
+				if (effective.length > 0 && effective !== stored) {
+					const storedIsSkin = SKINS.some((skin) => skin.id === stored);
+					if (!storedIsSkin) {
+						persist({ chosen: effective });
+					} else if (effective === NATIVE_SKIN) {
+						// Reset signature — verify against the patch layer before
+						// fighting back, so a genuine native 默认 pick survives.
+						verifyResetThenAct(stored);
+					} else {
+						persist({ chosen: effective });
+					}
+				}
 				scheduleReport();
 			});
 
@@ -1256,6 +1460,7 @@ window.__ModuleLoader__.load({
 							return {
 								setTheme: (id) => {
 									persist({ chosen: id });
+									writeLayerPreference(id);
 									try {
 										ctx.theme.setTheme(id);
 									} catch {
@@ -1282,12 +1487,25 @@ window.__ModuleLoader__.load({
 				)
 			);
 
-			/** Boot: honour the stored choice, else fall back to the default skin. */
+			/**
+			 * Boot: honour the stored choice, else fall back to the default skin.
+			 *
+			 * Only ids we know (our two skins, or the `system` sentinel) are pushed
+			 * onto the runtime here: a stored third-party id means the user picked
+			 * another theme through the shell's own UI, which we mirror but must
+			 * never override — the patch layer already carries that preference and
+			 * the runtime replays it on its own.
+			 */
 			const applyChosen = () => {
 				const chosen = readChosen();
 				try {
-					if (typeof chosen === "string" && chosen.length > 0) {
+					if (SKINS.some((skin) => skin.id === chosen) || chosen === NATIVE_SKIN) {
 						if (preferenceOf() !== chosen) ctx.theme.setTheme(chosen);
+						// The runtime may still be replaying the patch layer; make sure
+						// the layer agrees with what we are about to assert.
+						writeLayerPreference(chosen);
+					} else if (typeof chosen === "string" && chosen.length > 0) {
+						// Native or third-party theme chosen elsewhere — leave it alone.
 					} else if (!isOursActive()) {
 						ctx.theme.setTheme(DEFAULT_SKIN);
 					}
@@ -1312,9 +1530,71 @@ window.__ModuleLoader__.load({
 				scheduleReport();
 			});
 
+			/**
+			 * The heal: the actual recovery work behind the recovery net's
+			 * triggers (see recoveryProbe) and the reset verifier.
+			 *
+			 * The durable fix lives in the profile patch layer (see
+			 * writeLayerPreference): the composed tree replays it on every
+			 * re-initialization, so switching the model or the reasoning effort
+			 * no longer drops the theme across restarts. Live, however, the
+			 * shell still resets its in-memory preference on rebuilds without
+			 * re-reading the layer — the net catches those, and this worker
+			 * re-asserts. `healsCount` counts how often it had to fire; it
+			 * stays 0 in a healthy shell, and any fighting with the shell is
+			 * visible there.
+			 */
+			const heal = () => {
+				if (disposed) return;
+				try {
+					const chosen = readChosen();
+					if (!SKINS.some((skin) => skin.id === chosen)) return;
+					const preference = preferenceOf();
+					const surfaces = readComputedSurfaces();
+					const runtimeLost = preference !== chosen || surfaces.bgBase === "";
+					const chromeWanted = preference === chosen && readAcrylic();
+					const chromeLost = chromeWanted && !isChromeMounted();
+					if (!runtimeLost && !chromeLost) return;
+					healsCount += 1;
+					if (runtimeLost) {
+						try {
+							ctx.theme.setTheme(chosen);
+						} catch {
+							// runtime not ready — the next trigger retries
+						}
+						// Reinforce the layer in case the shell persisted its
+						// own reset value over ours.
+						writeLayerPreference(chosen);
+					}
+					sync();
+					syncRow((revision += 1));
+					scheduleReport();
+				} catch {
+					// the heal must never take the interface down with it
+				}
+			};
+			let healTimer = null;
+			const scheduleHealCheck = () => {
+				if (disposed || healTimer !== null) return;
+				healTimer = setTimeout(() => {
+					healTimer = null;
+					heal();
+				}, HEAL_DEBOUNCE_MS);
+			};
+			recovery.request = scheduleHealCheck;
+			recoveryAttachGestures();
+
 			ctx.effect(() => () => {
 				disposed = true;
+				recovery.request = null;
+				recoveryDetachGestures();
 				clearTimeout(bootTimer);
+				for (const timer of resetTimers) clearTimeout(timer);
+				resetTimers.length = 0;
+				if (healTimer !== null) {
+					clearTimeout(healTimer);
+					healTimer = null;
+				}
 				if (reportTimer !== null) clearTimeout(reportTimer);
 				if (rearmTimer !== null) {
 					clearTimeout(rearmTimer);
