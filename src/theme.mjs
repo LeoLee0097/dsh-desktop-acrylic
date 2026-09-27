@@ -587,8 +587,11 @@ export function buildPanelCss() {
     "}",
     // Fallback for a dialog that is not positioned: a `::before` would have no
     // containing block, so the blur goes on the element itself. The runtime only
-    // takes this path when the dialog has no `position: fixed` descendants, i.e.
-    // nothing that a filter would re-anchor.
+    // takes this path when the dialog has no `position: fixed` or `absolute`
+    // descendants: a filter on the element makes it the containing block for all
+    // of them, and a static dialog is never anyone's containing block — so any
+    // anchored descendant re-anchors into the box and gets clipped (half-shown
+    // toolbars, cut-off buttons).
     `${arm} [${PANEL_FLAT_ATTRIBUTE}] {`,
     "  background-color: var(--dwa-panel-fill) !important;",
     "  -webkit-backdrop-filter: blur(var(--dwa-panel-blur, 30px)) saturate(1.1);",

@@ -218,8 +218,12 @@ healthy shell; a persistently rising value means the shell keeps resetting the p
 `error` / `unavailable`).
 
 `panels` counts the dialogs currently carrying the frosted panel, and `panelDebug` states *why* each
-dialog was armed or skipped — `div.… 900x600 → flat`, `→ positioned`, `→ skip(static, fixed=3)` or
-`→ skip(small)`. When a dialog has no effect, that line is the first thing to read.
+dialog was armed or skipped — `div.… 900x600 → flat`, `→ positioned`, `→ skip(static, anchored=3)` or
+`→ skip(small)`. `anchored` is the total of `position: fixed/absolute` descendants: a static dialog is
+nobody's containing block, so once the filter lands on the element itself those descendants re-anchor
+into the box and get clipped (a toolbar showing only its top half) — static dialogs with anchored
+descendants are therefore never frosted flat. When a dialog has no effect, that line is the first
+thing to read.
 
 `masks` counts how many backdrop masks behind open dialogs were frosted, and `maskDebug` records the
 outcome — `div.… → mask` (hit) or `div.… → no-mask` (no viewport-sized fixed/absolute parent or
@@ -259,14 +263,19 @@ elements, so being rejected by the guard is the expected outcome, not a failure.
    entirely and simply shows no effect. Covering both structures needs a fallback that puts the blur on
    the element itself — after excluding dialogs with `position: fixed` descendants, which are the ones
    a filter would re-anchor.
-10. **The runtime theme preference lives in memory only, and the shell re-applies its own stored
-    preference *after* our plugin on every rebuild.** Switching the model, the reasoning effort, or
-    the settings window rebuilds the client tree and resets the preference to the profile default
-    (`system`) — without a reliable event and without re-reading the patch layer (verified: a reset
-    never writes `cordis.patch.yml`). Boot-time `setTheme` therefore wins first and loses second.
-    The 0.8.6 recovery net is the answer: persist the preference into the patch layer, heal from
-    DOM-mutation / pointerdown triggers, and on the `theme/change('system')` signature verify
-    against the patch layer before re-asserting on a delay.
+10. **The runtime theme preference lives in memory only, and rebuilds replay the
+    session snapshot composed once at startup.** Any settings change — switching
+    the model, the reasoning effort, opening or closing the settings window —
+    rebuilds the client tree and resets the preference to the snapshot value
+    (`system`, since a theme picked through this plugin never reached it),
+    without a reliable event and without re-reading the patch layer (verified:
+    a reset never writes `cordis.patch.yml`, and runtime writes to the patch
+    file never enter the running session). The snapshot is applied *after* our
+    plugin, so boot-time `setTheme` wins first and loses second. The 0.8.6
+    recovery net is the answer: persist the preference into the patch layer
+    (survives restarts), heal from DOM-mutation / pointerdown triggers, and on
+    the `theme/change('system')` signature re-assert **immediately**, then
+    verify against the patch layer and yield when the pick was genuine.
 
 ## Known limits
 
@@ -282,26 +291,29 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 - **0.8.6** — Persisted preference + silent-reset detection: the theme choice is
   written into the ui-theme entry of the profile patch layer — the same place the
-  native theme picker writes — so the composed tree replays it across restarts.
-  Live, however, the shell rebuilds its client tree (after a model / effort click,
-  and when the settings window closes), resets its in-memory preference to
-  `system` and never re-reads the layer (verified: a reset never writes the patch
-  file). The rebuild always mutates the DOM, so a mutation observer (250ms debounce
-  + cheap pre-check, purely event-driven, zero polling) catches the reset the
-  moment it lands; the observer is re-anchored to the current root on every chrome
-  sync so a full-tree replacement cannot leave it silently dead on a detached
-  node. Crucially, the shell applies its own stored preference *after* our plugin
-  on every rebuild — so on the reset signature `theme/change('system')` the plugin
-  does not fight back instantly (it would lose and would stomp a genuine pick made
-  moments earlier); instead it waits 1.5s and reads the layer back via
-  `GET /dark-acrylic/preference`: a layer that still holds our choice means it was
-  a reset — re-assert on a 1.5s / 3.5s double pass and reinforce the layer — while
-  a layer that already says `system` means the user genuinely picked 默认 natively,
-  which is mirrored and left alone. A pointerdown listener is a second trigger for
-  resets that change nothing in the DOM. Other choices made through the shell's
-  own UI are mirrored and never overridden by boot or recovery. New diagnostics
-  `heals` counter and `layer` write status (`heals` also shown on the settings
-  row).
+  native theme picker writes — so it survives process restarts. The shell's
+  ui-theme config, however, is a *session snapshot composed once at startup*:
+  runtime writes to the patch file never enter the running session, so every
+  rebuild (switching the model, the reasoning effort, opening or closing the
+  settings window — any settings change) replays that snapshot — which still
+  says `system`, since a pick made through this plugin never reached it — and
+  resets the runtime preference (verified: a reset never writes the patch
+  file). Every rebuild therefore has to be answered on the spot: a DOM mutation
+  observer (250ms debounce + cheap pre-check, then a direct heal with no second
+  debounce) restores the theme the moment the mutations settle; the observer is
+  re-anchored to the current root on every chrome sync so a full-tree
+  replacement cannot leave it silently dead on a detached node; a pointerdown
+  listener covers resets that change nothing in the DOM. On the reset signature
+  `theme/change('system')` the plugin re-asserts **immediately** — otherwise
+  the user watches the default theme for 1.5s on every settings change — and
+  the verification passes at 1.5s / 3.5s then read the layer back via
+  `GET /dark-acrylic/preference`: a layer that still holds our choice means it
+  was a reset — keep healing and reinforce the layer — while a layer that
+  already says `system` means the user genuinely picked 默认 natively (native
+  picks are persisted to the same block, as its fontSize proves), which is
+  mirrored and re-applied. Picking 默认 in our own row persists `system`
+  before firing the event, so it is never fought. New diagnostics `heals`
+  counter and `layer` write status (`heals` also shown on the settings row).
 - **0.8.5** — Frosted dialog backdrop: the dim mask behind an open modal now carries a
   `backdrop-filter` (default `blur(12px) saturate(1.1)`, tunable via `--dwa-mask-blur`), so the
   interface shows through frosted; native `<dialog>` elements get `::backdrop`; new diagnostics
