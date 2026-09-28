@@ -601,6 +601,45 @@ export function buildPanelCss() {
 }
 
 /**
+ * Card sizing and overflow.
+ *
+ * The card library fixes a card's width through a *class*, not through its
+ * container:
+ *
+ *   .tiny-card.tiny-card--large-width { width: var(--tv-Card-large-width) }
+ *
+ * and `--tv-Card-large-width` is declared on `.tiny-card` itself as
+ * `calc(var(--tv-size-base, 4px) * 144)` = 576px. A schema that omits the
+ * library's `auto-width` property therefore renders a 576px card inside a wider
+ * column — the "card fills only half the row" symptom — and a wide table inside
+ * it has nowhere to scroll.
+ *
+ * Neither problem can be fixed through the token bridge: the library declares
+ * the width variables on the card element, and an element's own declaration
+ * beats anything inherited from `body`. A rule targeting the classes does win
+ * on specificity, so the sizing is neutralised here for every card, whatever
+ * the generator emitted, and the card body becomes the horizontal scroll
+ * container its wide content needs.
+ */
+export function buildCardCss() {
+  const arm = ':root[data-dwa-theme]'
+  const widths = ['large', 'medium', 'small', 'mini']
+    .map((size) => `${arm} .tiny-card.tiny-card--${size}-width`)
+    .join(',\n')
+  return [
+    `${widths} {`,
+    "  width: auto;",
+    "  max-width: 100%;",
+    "}",
+    `${arm} .tiny-card .tiny-card__body {`,
+    "  min-width: 0;",
+    "  max-width: 100%;",
+    "  overflow-x: auto;",
+    "}"
+  ].join('\n')
+}
+
+/**
  * Frosted dim mask behind open dialogs (the settings window among them).
  *
  * When a modal opens, the shell paints a mask over the page to dim it. The
@@ -697,6 +736,9 @@ export function buildBaseCss() {
     `${arm} body:not([data-ds-dark-theme]) {`,
     "  color-scheme: light;",
     "}",
+    // Card sizing and overflow are independent of the acrylic layer, so they live
+    // in the always-mounted base rather than in the chrome stylesheet.
+    buildCardCss(),
 
     layer(NIGHT, ''),
     layer(DAY, ':not([data-ds-dark-theme])')

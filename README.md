@@ -62,6 +62,19 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 
 安装后**完全退出并重启** DSH Desktop。此后单独重载渲染进程也会重新拉取客户端包。
 
+### 版本兼容性
+
+| 插件版本 | 支持的 DSH | 说明 |
+| --- | --- | --- |
+| **0.9.0+** | **0.2.0-rc.1 及更高** | peer 依赖对齐 `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1`、`@deepseek-ai/cordis @ ^4.0.4`；**移除**已下线的 `@deepseek-ai/dsh-client-runtime`，改为声明实际提供服务的包（`dsh-client-store` / `dsh-client-locale` / `dsh-client-ui-theme` / `dsh-client-ui-settings-general`） |
+| 0.8.x 及更早 | 0.1.0-rc.6 一线 | 仍声明 `dsh-client-runtime ^0.1.0-rc.6`，在 DSH 0.2.0-rc.1 上会被插件管理器判定不兼容 |
+
+若你从 0.8.x 升级到 0.9.0：拉到新版本后重启 DSH Desktop 即可，插件管理器会重新读取
+`peerDependencies`；若仍提示不兼容，请重新执行上面的安装命令刷新 profile 的依赖记录。
+本次升级**不涉及任何客户端 API 变更**——`__ModuleLoader__`、`ctx.slots.inject/register`、
+`ctx.theme.register`、`ctx.on('theme/change')`、`webServer.register({ kind: 'exact' })`
+在 0.2.0-rc.1 中均保持不变（已逐一核对）。
+
 ### 网页端（web profile）
 
 > **声明**：开发者主要在 DSH Desktop 内测版中使用本插件，**未在网页端进行过测试**。如遇异常，
@@ -253,6 +266,13 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+## 变更记录
+
+- **0.9.1** — 卡片宽度与横向滚动修复：卡片库用**类**而不是容器决定宽度（.tiny-card--large-width{width:var(--tv-Card-large-width)}，而该变量在 .tiny-card 自身上声明为 4px×144＝576px），因此未写 uto-width 的卡片会只占半行；改为用选择器中和四个宽度类（width:auto;max-width:100%），并让卡片正文成为横向滚动容器（min-width:0;max-width:100%;overflow-x:auto）。该修复在基础样式里，与亚克力层无关。
+- **0.9.0** — 兼容 DSH 0.2.0-rc.1：peer 依赖升级到 `@deepseek-ai/dsh-client-* ^0.2.0-rc.1` 与
+  `@deepseek-ai/cordis ^4.0.4`；移除已下线的 `@deepseek-ai/dsh-client-runtime`，客户端模块依赖改为
+  声明实际提供所需服务的包（store / locale / ui-theme / ui-settings-general）。运行期 API 未变，
+  无需改动任何插件代码——仅元数据对齐。
 - **0.8.6** — 偏好落盘 + 静默重置侦测：主题选择写入 profile 补丁层的 ui-theme 配置（与原生主题
   选择同一落点），跨重启不丢；但 shell 的 ui-theme 配置是**会话启动时组合一次**的快照，运行期
   写补丁文件不会进入运行中的会话——切换模型 / 思考强度、开关设置菜单等任意设置变更触发重建时，

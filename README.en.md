@@ -64,6 +64,20 @@ dsh plugin --profile desktop add github:LeoLee0097/dsh-desktop-acrylic
 dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 ```
 
+### Version compatibility
+
+| Plugin version | Supported DSH | Notes |
+| --- | --- | --- |
+| **0.9.0+** | **0.2.0-rc.1 and later** | Peer dependencies aligned to `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1` and `@deepseek-ai/cordis @ ^4.0.4`; the retired `@deepseek-ai/dsh-client-runtime` is **dropped** in favour of the packages that actually provide the services used (`dsh-client-store`, `dsh-client-locale`, `dsh-client-ui-theme`, `dsh-client-ui-settings-general`) |
+| 0.8.x and earlier | the 0.1.0-rc.6 line | Still declares `dsh-client-runtime ^0.1.0-rc.6`, which the plugin manager rejects on DSH 0.2.0-rc.1 |
+
+Upgrading from 0.8.x to 0.9.0: pull the new version and restart DSH Desktop so the plugin manager
+re-reads `peerDependencies`. If it still reports an incompatibility, re-run the install command above
+to refresh the profile's dependency record. **No client API changed in this release** —
+`__ModuleLoader__`, `ctx.slots.inject/register`, `ctx.theme.register`, `ctx.on('theme/change')` and
+`webServer.register({ kind: 'exact' })` are all unchanged in 0.2.0-rc.1 (each one was verified against
+the shipped bundle).
+
 ### Web (web profile)
 
 > **Disclaimer**: the developer uses this plugin primarily with the DSH Desktop beta and **has not
@@ -289,6 +303,14 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+## Changelog
+
+- **0.9.1** — Card width and horizontal scrolling fixed: the card library sizes a card by **class**, not by its container (.tiny-card--large-width{width:var(--tv-Card-large-width)}, and that variable is declared on .tiny-card itself as 4px × 144 = 576px), so a schema without uto-width fills only half the row. The four width classes are now neutralised by selector (width:auto;max-width:100%) and the card body becomes the horizontal scroll container (min-width:0;max-width:100%;overflow-x:auto). The fix lives in the base stylesheet, independent of the acrylic layer.
+- **0.9.0** — DSH 0.2.0-rc.1 compatibility: peer dependencies raised to
+  `@deepseek-ai/dsh-client-* ^0.2.0-rc.1` and `@deepseek-ai/cordis ^4.0.4`; the retired
+  `@deepseek-ai/dsh-client-runtime` is dropped, and the client module dependencies now name the
+  packages that actually provide the services used (store / locale / ui-theme / ui-settings-general).
+  No runtime API changed — this is metadata alignment only, no plugin code had to move.
 - **0.8.6** — Persisted preference + silent-reset detection: the theme choice is
   written into the ui-theme entry of the profile patch layer — the same place the
   native theme picker writes — so it survives process restarts. The shell's
