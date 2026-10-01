@@ -295,6 +295,14 @@ function buildFixedTokens(p) {
     // transparent so the effect is real — its light text survives any
     // backdrop, and the translucent surfaces can show the material field.
     '--dwa-root-base': dark ? 'transparent' : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    // Fail-safe canvas. The material used to live only on `body::before`, so if
+    // that pseudo-element ever failed to paint (a stacking-context change, a
+    // recomposition that replaced the node, a filter that was dropped), the page
+    // had *nothing* behind it and the whole interface showed through — the
+    // intermittent "fully transparent" symptom. The same field is therefore
+    // painted on `body` itself as well, over a near-opaque base, so the worst
+    // case is a plainer canvas rather than an invisible one.
+    '--dwa-canvas-base': dark ? `color-mix(in srgb, ${p.bg} 88%, transparent)` : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),
     '--dwa-panel-blur': '30px',
@@ -618,10 +626,12 @@ export function buildPanelCss() {
  * the width variables on the card element, and an element's own declaration
  * beats anything inherited from `body`. A rule targeting the classes does win
  * on specificity, so the sizing is neutralised here for every card, whatever
- * the generator emitted, and the card body becomes the horizontal scroll
- * container its wide content needs.
+ * the generator emitted.
  */
+export const CARD_CSS_ENABLED = true
+
 export function buildCardCss() {
+  if (!CARD_CSS_ENABLED) return ''
   const arm = ':root[data-dwa-theme]'
   const widths = ['large', 'medium', 'small', 'mini']
     .map((size) => `${arm} .tiny-card.tiny-card--${size}-width`)
@@ -631,10 +641,15 @@ export function buildCardCss() {
     "  width: auto;",
     "  max-width: 100%;",
     "}",
+    // Deliberately no `overflow` here. An earlier revision put
+    // `overflow-x: auto` on the card body so wide tables could scroll, and that
+    // is the wrong place for a scrollport: the card body hosts absolutely
+    // positioned children, and a scroll container gives those a zero-height
+    // viewport, so the card rendered empty. `min-width: 0` keeps the flex
+    // shrink behaviour (the reason the rule existed) without taking ownership
+    // of the box; the table itself already scrolls inside the library.
     `${arm} .tiny-card .tiny-card__body {`,
     "  min-width: 0;",
-    "  max-width: 100%;",
-    "  overflow-x: auto;",
     "}"
   ].join('\n')
 }
@@ -721,6 +736,13 @@ export function buildBaseCss() {
     "  pointer-events: none;",
     `  background:\n    ${materialStack(palette)};`,
     `  filter: blur(${ACRYLIC.materialBlurPx}px) saturate(1.2);`,
+    "}",
+    // The same field on `body` itself: this is the fail-safe that keeps the
+    // interface visible even when the pseudo-element above does not paint.
+    `${arm} body${suffix} {`,
+    "  background-color: var(--dwa-canvas-base, var(--dwa-root-base, transparent));",
+    `  background-image:\n    ${materialStack(palette)};`,
+    "  background-attachment: fixed;",
     "}"
   ].join('\n')
   return [

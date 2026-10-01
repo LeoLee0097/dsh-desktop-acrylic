@@ -67,6 +67,7 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 | 插件版本 | 支持的 DSH | 说明 |
 | --- | --- | --- |
 | **0.9.0+** | **0.2.0-rc.1 及更高** | peer 依赖对齐 `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1`、`@deepseek-ai/cordis @ ^4.0.4`；**移除**已下线的 `@deepseek-ai/dsh-client-runtime`，改为声明实际提供服务的包（`dsh-client-store` / `dsh-client-locale` / `dsh-client-ui-theme` / `dsh-client-ui-settings-general`） |
+| **0.9.2+** | **0.2.0-rc.2 已验证** | 在 DSH 0.2.0-rc.2 上实测：全部 peer 仍然满足（^0.2.0-rc.1 覆盖同 0.2.0 三元组的预发布版本，如 rc.2）。注意**精确版本豁免是按 DSH 版本记账的**：升级 DSH 后老的 exemption 全部失效，需要按新版本重新生成 compatibility.json |
 | 0.8.x 及更早 | 0.1.0-rc.6 一线 | 仍声明 `dsh-client-runtime ^0.1.0-rc.6`，在 DSH 0.2.0-rc.1 上会被插件管理器判定不兼容 |
 
 若你从 0.8.x 升级到 0.9.0：拉到新版本后重启 DSH Desktop 即可，插件管理器会重新读取
@@ -266,9 +267,10 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
-## 变更记录
+- **0.9.3** — 撤掉卡片正文上的 `overflow-x: auto`：把它当滚动容器会给绝对定位子元素一个 0 高度视口，「卡片空白」正是这样产生的；改为只保留 `min-width: 0`，并新增 `CARD_CSS_ENABLED` 开关，需要时一键关掉整段卡片规则。同时记录「卡片渲染失效」的真实归因：那是 `dsh-genui` 在 DSH 升级后被拒绝加载（精确版本豁免按 DSH 版本记账，旧授权对新版本无效），与主题无关。
+- **0.9.2** — 适配 DSH 0.2.0-rc.2（5 条 peer 全部复核通过）+ 「全透明」兜底：材质场此前只画在 `body::before` 上，一旦该伪元素不绘制（层叠上下文变化 / 节点被替换 / 滤镜被丢弃），而 `html` 底色在暗色下又是 `transparent`，页面背后就什么都没有，表现为**界面整体突然透明**。现在同一份材质同时画在 `body` 自身的 `background-image` 上，并配近不透明的 `--dwa-canvas-base`（暗色 88%），最坏情况是画布变朴素，而不是整个界面消失。诊断新增 `canvas` / `material`。
+- **0.9.1** — 卡片宽度修复：卡片库用**类**而不是容器决定宽度（`.tiny-card.tiny-card--large-width{width:var(--tv-Card-large-width)}`，而该变量在 `.tiny-card` 自身上声明为 `4px × 144 = 576px`），因此未写 `auto-width` 的卡片只占半行。现用选择器中和四个宽度类（`width: auto; max-width: 100%`）。规则放在基础样式里，与亚克力层无关。
 
-- **0.9.1** — 卡片宽度与横向滚动修复：卡片库用**类**而不是容器决定宽度（.tiny-card--large-width{width:var(--tv-Card-large-width)}，而该变量在 .tiny-card 自身上声明为 4px×144＝576px），因此未写 uto-width 的卡片会只占半行；改为用选择器中和四个宽度类（width:auto;max-width:100%），并让卡片正文成为横向滚动容器（min-width:0;max-width:100%;overflow-x:auto）。该修复在基础样式里，与亚克力层无关。
 - **0.9.0** — 兼容 DSH 0.2.0-rc.1：peer 依赖升级到 `@deepseek-ai/dsh-client-* ^0.2.0-rc.1` 与
   `@deepseek-ai/cordis ^4.0.4`；移除已下线的 `@deepseek-ai/dsh-client-runtime`，客户端模块依赖改为
   声明实际提供所需服务的包（store / locale / ui-theme / ui-settings-general）。运行期 API 未变，

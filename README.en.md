@@ -69,6 +69,7 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 | Plugin version | Supported DSH | Notes |
 | --- | --- | --- |
 | **0.9.0+** | **0.2.0-rc.1 and later** | Peer dependencies aligned to `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1` and `@deepseek-ai/cordis @ ^4.0.4`; the retired `@deepseek-ai/dsh-client-runtime` is **dropped** in favour of the packages that actually provide the services used (`dsh-client-store`, `dsh-client-locale`, `dsh-client-ui-theme`, `dsh-client-ui-settings-general`) |
+| **0.9.2+** | **verified on 0.2.0-rc.2** | Measured against DSH 0.2.0-rc.2: every peer still satisfies (^0.2.0-rc.1 covers prereleases of the same 0.2.0 tuple, rc.2 included). Note that **exact-version exemptions are keyed by DSH version**, so a DSH upgrade invalidates them all and compatibility.json has to be regenerated for the new version |
 | 0.8.x and earlier | the 0.1.0-rc.6 line | Still declares `dsh-client-runtime ^0.1.0-rc.6`, which the plugin manager rejects on DSH 0.2.0-rc.1 |
 
 Upgrading from 0.8.x to 0.9.0: pull the new version and restart DSH Desktop so the plugin manager
@@ -303,9 +304,10 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
-## Changelog
+- **0.9.3** — Removed `overflow-x: auto` from the card body: using it as a scrollport gives absolutely positioned children a zero-height viewport, which is exactly how a blank card is produced. Only `min-width: 0` remains, plus a new `CARD_CSS_ENABLED` switch to turn the whole card block off. Also records the real cause of the "cards stopped rendering" report: `dsh-genui` was denied at startup after the DSH upgrade (exact-version exemptions are keyed by DSH version, so the old grants did not carry over) — unrelated to the theme.
+- **0.9.2** — DSH 0.2.0-rc.2 support (all five peers re-verified) and a fail-safe for the intermittent fully-transparent interface: the material field used to exist only on `body::before`, and with `html` transparent in the dark palette a pseudo-element that stopped painting (a stacking-context change, a replaced node, a dropped filter) left nothing behind the page — the whole UI showed through. The same field is now painted on `body` itself as well, over a near-opaque `--dwa-canvas-base` (88% in dark), so the worst case is a plainer canvas rather than an invisible interface. Diagnostics gained `canvas` / `material`.
+- **0.9.1** — Card width fixed: the card library sizes a card by **class**, not by its container (`.tiny-card.tiny-card--large-width{width:var(--tv-Card-large-width)}`, and that variable is declared on `.tiny-card` itself as `4px × 144 = 576px`), so a schema without `auto-width` filled only half the row. The four width classes are now neutralised by selector (`width: auto; max-width: 100%`). The rule lives in the base stylesheet, independent of the acrylic layer.
 
-- **0.9.1** — Card width and horizontal scrolling fixed: the card library sizes a card by **class**, not by its container (.tiny-card--large-width{width:var(--tv-Card-large-width)}, and that variable is declared on .tiny-card itself as 4px × 144 = 576px), so a schema without uto-width fills only half the row. The four width classes are now neutralised by selector (width:auto;max-width:100%) and the card body becomes the horizontal scroll container (min-width:0;max-width:100%;overflow-x:auto). The fix lives in the base stylesheet, independent of the acrylic layer.
 - **0.9.0** — DSH 0.2.0-rc.1 compatibility: peer dependencies raised to
   `@deepseek-ai/dsh-client-* ^0.2.0-rc.1` and `@deepseek-ai/cordis ^4.0.4`; the retired
   `@deepseek-ai/dsh-client-runtime` is dropped, and the client module dependencies now name the

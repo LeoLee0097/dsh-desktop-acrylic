@@ -123,13 +123,21 @@ window.__ModuleLoader__.load({
 		function readComputedSurfaces() {
 			try {
 				const style = window.getComputedStyle(document.body);
+				// `canvas` is the fail-safe layer: the material field is painted on
+				// body itself, so a transparent canvas here would mean the interface
+				// has nothing behind it — the intermittent "fully transparent"
+				// symptom. Reporting both values makes that state visible instead of
+				// having to guess from a screenshot.
 				return {
 					bgBase: style.getPropertyValue("--dsw-alias-bg-base").trim(),
 					sidebar: style.getPropertyValue("--dsw-specific-sidebar-fill").trim(),
-					menuBlur: style.getPropertyValue("--dsw-menu-backdrop-filter").trim()
+					menuBlur: style.getPropertyValue("--dsw-menu-backdrop-filter").trim(),
+					canvas: style.backgroundColor.trim(),
+					canvasToken: style.getPropertyValue("--dwa-canvas-base").trim(),
+					material: style.backgroundImage.indexOf("gradient") >= 0
 				};
 			} catch {
-				return { bgBase: "", sidebar: "", menuBlur: "" };
+				return { bgBase: "", sidebar: "", menuBlur: "", canvas: "", canvasToken: "", material: false };
 			}
 		}
 		//#endregion
@@ -1349,6 +1357,8 @@ window.__ModuleLoader__.load({
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
 						bgBase: readComputedSurfaces().bgBase,
+						canvas: readComputedSurfaces().canvas,
+						material: readComputedSurfaces().material,
 						revision: typeof next === "number" ? next : (revision += 1)
 					});
 				} catch {

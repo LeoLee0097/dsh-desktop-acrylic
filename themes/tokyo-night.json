@@ -117,6 +117,7 @@
     "--dsw-alias-bg-mask-2": "rgba(11, 11, 18, 0.2)",
     "--dsw-alias-bg-mask-3": "rgba(11, 11, 18, 0.48)",
     "--dwa-root-base": "transparent",
+    "--dwa-canvas-base": "color-mix(in srgb, #1a1b26 88%, transparent)",
     "--dwa-panel-fill": "rgba(22, 22, 30, 0.75)",
     "--dwa-panel-blur": "30px",
     "--dwa-mask-blur": "12px",
