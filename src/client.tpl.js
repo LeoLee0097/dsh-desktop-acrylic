@@ -196,6 +196,7 @@ window.__ModuleLoader__.load({
 		/** Number of dialogs currently frosted as panels. */
 		let panelsCount = 0;
 		/** Number of shadow hosts that received the bridge tokens. */
+		const SHADOW_HOST_BRIDGE_ENABLED = false;
 		let shadowHosts = 0;
 
 		/** Number of dim masks currently frosted behind dialogs. */
@@ -675,6 +676,7 @@ window.__ModuleLoader__.load({
 		 * Returns the number of hosts patched.
 		 */
 		function armShadowHosts() {
+			if (!SHADOW_HOST_BRIDGE_ENABLED) return 0;
 			let patched = 0;
 			try {
 				// The bridge tokens live inline on <body> (the shell applies every skin

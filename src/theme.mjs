@@ -1169,7 +1169,14 @@ function materialStack(p) {
  * of the library's class rules) beats that, and the values still inherit down to
  * the card's children.
  */
+export const TINY_BRIDGE_ENABLED = false
+
 export function buildTinyBridgeCss() {
+  // Rolled back behind a switch: the element-level rule is the last change that
+  // preceded the reported display breakage, so it ships disabled until the
+  // screenshot shows what actually broke.
+  if (!TINY_BRIDGE_ENABLED) return ''
+
   const names = Object.keys(TV_BRIDGE_EXTRA)
   const declared = [
     '--tv-color-bg',
