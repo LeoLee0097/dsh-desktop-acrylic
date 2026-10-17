@@ -1002,6 +1002,29 @@ window.__ModuleLoader__.load({
 				});
 		}
 
+		/**
+		 * What a card root actually resolves its font to.
+		 *
+		 * The card library paints `font-family: var(--tv-font-family)` on every
+		 * element carrying a `tiny-` class, so the whole card follows that single
+		 * variable. Reading it back — the variable as won on the card root, plus the
+		 * computed family of one child — is what tells a bridged token apart from one
+		 * that lost the cascade: if the token says "(unset)" the library's own
+		 * Helvetica is still in charge, and the font override never reached the card.
+		 */
+		function probeCardFont() {
+			try {
+				const card = document.querySelector('[id^="dsh-genui-card-"]');
+				if (card === null) return "no-card";
+				const token = window.getComputedStyle(card).getPropertyValue("--tv-font-family").trim();
+				const leaf = card.querySelector("[class*='tiny-']") || card;
+				const family = window.getComputedStyle(leaf).fontFamily;
+				return `${token === "" ? "(unset)" : token} => ${family}`;
+			} catch {
+				return "probe-failed";
+			}
+		}
+
 		/** Push a status snapshot; diagnostics only, never throws. */
 		async function report() {
 			try {
@@ -1027,6 +1050,7 @@ window.__ModuleLoader__.load({
 						panelDebug: panelDebug.slice(0, 4),
 						surfaceProbe,
 						cardRules,
+						cardFont: probeCardFont(),
 						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
 						heals: healsCount,
