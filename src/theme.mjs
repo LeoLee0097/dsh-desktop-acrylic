@@ -292,8 +292,8 @@ const MAX_SURFACE_ALPHA = 0.85
  * 4.5:1 *on its own* pushed the canvas to 0.73 and made the interface solid.
  * The numbers here are the retreat from that.
  */
-export const MIN_SURFACE_CONTRAST = 2.5
-export const MIN_SURFACE_ALPHA = 0.42
+export const MIN_SURFACE_CONTRAST = 2.0
+export const MIN_SURFACE_ALPHA = 0.36
 export const MIN_COMPOSED_CONTRAST = 7
 
 /** Tokens that dim or decorate instead of holding text. */
@@ -381,7 +381,7 @@ function buildFixedTokens(p) {
     // plain white window fill, so "transparent" meant "washed out". It is now a
     // near-opaque ground: 4% of the window may show through, but no surface can
     // be fully transparent any more.
-    '--dwa-root-base': dark ? rgba(p.bg, 0.90) : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    '--dwa-root-base': dark ? rgba(p.bg, 0.84) : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Fail-safe canvas. The material used to live only on `body::before`, so if
     // that pseudo-element ever failed to paint (a stacking-context change, a
     // recomposition that replaced the node, a filter that was dropped), the page
@@ -389,7 +389,7 @@ function buildFixedTokens(p) {
     // intermittent "fully transparent" symptom. The same field is therefore
     // painted on `body` itself as well, over a near-opaque base, so the worst
     // case is a plainer canvas rather than an invisible one.
-    '--dwa-canvas-base': dark ? `color-mix(in srgb, ${p.bg} 80%, transparent)` : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    '--dwa-canvas-base': dark ? `color-mix(in srgb, ${p.bg} 72%, transparent)` : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),
     '--dwa-panel-blur': '30px',

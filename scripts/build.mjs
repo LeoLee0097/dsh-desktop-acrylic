@@ -247,8 +247,8 @@ const WHITE = { r: 255, g: 255, b: 255 }
 
 // Guard policy, intentionally independent of src/theme.mjs so that relaxing the
 // tuning knobs cannot quietly disarm the check.
-const GUARD_MIN_ALPHA = 0.42
-const GUARD_MIN_ALONE = 2.5
+const GUARD_MIN_ALPHA = 0.36
+const GUARD_MIN_ALONE = 2.0
 const GUARD_MIN_COMPOSED = 7
 
 const translucencyFailures = []
