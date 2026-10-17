@@ -1014,6 +1014,7 @@ window.__ModuleLoader__.load({
 						panelDebug: panelDebug.slice(0, 4),
 						surfaceProbe,
 						cardRules,
+						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
 						heals: healsCount,
 						layer: layerStatus,
