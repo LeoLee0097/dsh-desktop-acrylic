@@ -36,7 +36,7 @@ row and the `masks 1` diagnostic are visible):
 
 | Feature | How it works | Values |
 | --- | --- | --- |
-| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 221 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
+| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 410 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
 | Icons follow the theme | The shell paints icons with `currentColor` and ships no icon-specific tokens, so icons follow `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | nothing to configure |
 | Canvas transparency | Background-family tokens carry alpha, **solved for readability** (see below) | dark `0.73`; light `0.30` — both reach ≥ 4.5:1 when composited over white |
 | Material base | A soft blue/purple/cyan field built from the palette, pinned to the bottom layer and pre-blurred | strength dark 30% / light 24%, `blur(28px)` |
@@ -328,6 +328,8 @@ see [docs/desktop-window-material.md](docs/desktop-window-material.md).
 With `prefers-reduced-transparency: reduce` the blur layers are disabled automatically.
 
 ## Changelog
+
+- **0.9.11** — The card-library bridge is now complete: tiny-vue reads **247** `--tv-color-*` names, and 0.9.10 only covered 60. The rest — the action families (`act-*`, 105 names), borders (`border-*`, 32), inverse text (`text-inverse`, 25), empty states (`no-data-*`, 22) and the state icons — still fell back to the library defaults, which is why "other elements" stayed inconsistent. The table is now generated per family: **249** bridges covering every name the library reads, all pointing at our alias tokens (brand, the three surfaces, borders, labels, state colours), so both skins stay in sync; token count 221 → **410**, zero dangling references.
 
 - **0.9.10** — QA cards (genui / tiny-vue) no longer use a foreign background: the card library declares its whole palette on `:root` and maps every `--tv-color-*` to its own base colours, while **we bridged only 22 of them**. The card body (`--tv-color-bg`) and the nested surfaces (`bg-secondary` / `bg-primary` / `bg-4` / `bg-header` …) therefore fell back to the library defaults — pure white in light, a neutral grey in dark (the `#ffffff` and `#1a1a1a` / `#262626` in the screenshots), which is exactly why the QA boxes did not match the theme. The bridge now covers **60** tokens (surfaces, interaction, text, icon, border, state) and adds the `--dsw-alias-state-error-tertiary` surface the cards also request. Bridge values still point at our own alias tokens, so both skins stay in sync; token count 182 → **221**.
 
