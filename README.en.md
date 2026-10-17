@@ -329,6 +329,8 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.9.21** — Restore the `masks` diagnostics field: the `report()` payload had lost `masks: maskCount` (an editing slip when the debug fields were added), so snapshots showed `maskDebug` without the count. Diagnostics only; rendering is untouched.
+
 - **0.9.20** — `fontCount: 0` fixed: the font scan used to run only inside the settings row’s `useEffect`, so unless that window had been opened the diagnostics kept reporting `builtin/0` — the fonts were fine, the measurement simply never happened. The scan now runs once at plugin activation and is cached (`systemFontCache`); the row starts from that cache, so the first diagnostics snapshot already carries a real number. Verified against the host route `GET /dark-acrylic/fonts`: **370 families, 37 classified as monospace**.
 
 - **0.9.19** — Dead code removed: `SHADOW_HOST_BRIDGE_ENABLED` and `armShadowHosts()` are gone. The probe proved the cards are plain light-DOM elements (`shadow=false`), so the function never actually ran; the `shadowHosts` diagnostics field went with it.
