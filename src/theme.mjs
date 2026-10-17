@@ -1179,15 +1179,18 @@ export function buildTinyBridgeCss() {
   // target the id pattern as well as the readable class names.
   if (!TINY_BRIDGE_ENABLED) return ''
   const curated = {
-    '--tv-color-bg': 'var(--dsw-alias-bg-layer-2)',
-    '--tv-color-bg-secondary': 'var(--dsw-alias-bg-layer-1)',
-    '--tv-color-bg-primary': 'var(--dsw-alias-bg-layer-3)',
-    '--tv-color-bg-header': 'var(--dsw-alias-bg-layer-3)',
-    '--tv-color-bg-2': 'var(--dsw-alias-bg-layer-2)',
-    '--tv-color-bg-3': 'var(--dsw-alias-bg-layer-2)',
-    '--tv-color-bg-4': 'var(--dsw-alias-bg-layer-3)',
-    '--tv-color-bg-gray-1': 'var(--dsw-alias-bg-layer-2)',
-    '--tv-color-bg-gray-2': 'var(--dsw-alias-bg-layer-3)',
+    // Container-level surfaces: cleared so the card has no background of its own
+    // and the page material shows through. Text, border and control tokens keep
+    // their values, so anything inside the card stays readable.
+    '--tv-color-bg': 'transparent',
+    '--tv-color-bg-secondary': 'transparent',
+    '--tv-color-bg-primary': 'transparent',
+    '--tv-color-bg-header': 'transparent',
+    '--tv-color-bg-2': 'transparent',
+    '--tv-color-bg-3': 'transparent',
+    '--tv-color-bg-4': 'transparent',
+    '--tv-color-bg-gray-1': 'transparent',
+    '--tv-color-bg-gray-2': 'transparent',
     '--tv-color-text': 'var(--dsw-alias-label-primary)',
     '--tv-color-text-secondary': 'var(--dsw-alias-label-secondary)',
     '--tv-color-text-placeholder': 'var(--dsw-alias-label-tertiary)',
@@ -1205,6 +1208,16 @@ export function buildTinyBridgeCss() {
     lines.push(`  ${name}: ${value} !important;`)
   }
   lines.push('}')
+  // The library may also paint the wrapper itself rather than through the
+  // variable; clear it on the card root so no opaque block is left behind.
+  lines.push(
+    ':root[data-dwa-theme] [id^="dsh-genui-card-"],\n' +
+      ':root[data-dwa-theme] body .tiny-card,\n' +
+      ':root[data-dwa-theme] body [class*="tiny-card--"] {\n' +
+      '  background-color: transparent !important;\n' +
+      '  background-image: none !important;\n' +
+      '}'
+  )
   return lines.join('\n')
 }
 
