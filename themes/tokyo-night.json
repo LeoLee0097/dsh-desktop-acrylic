@@ -122,6 +122,7 @@
     "--dwa-panel-fill": "rgba(22, 22, 30, 0.75)",
     "--dwa-panel-blur": "30px",
     "--dwa-mask-blur": "12px",
+    "--dsw-mask-blur": "blur(12px) saturate(1.1)",
     "--dwa-menu-solid": "#1a1b26",
     "--tv-color-text": "var(--dsw-alias-label-primary)",
     "--tv-color-text-important": "var(--dsw-alias-label-primary)",

@@ -184,9 +184,22 @@ window.__ModuleLoader__.load({
 			const code = typeof codeFamily === "string" ? codeFamily.replace(/[";{}]/g, "").trim() : "";
 			const uiFallback = '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 			const codeFallback = '"SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace';
+			const stack = `${clean}, ${uiFallback}`;
 			const lines = [`  --dsw-font-family: ${clean}, ${uiFallback} !important;`];
 			if (code.length > 0) lines.push(`  --ds-font-family-code: ${code}, ${codeFallback} !important;`);
-			return `:root[${ARM_ATTRIBUTE}] body {\n${lines.join("\n")}\n}`;
+			// The card library does not read the shell's font variable. Every element
+			// with a `tiny-` class takes `font-family: var(--tv-font-family)`, and that
+			// variable is declared on the card root in the same id-scoped block as the
+			// palette (Helvetica, Arial, PingFang…). So a body-level font stops at the
+			// card boundary, and the card stack has to be declared on the card root.
+			const cardFont = [
+				`:root[${ARM_ATTRIBUTE}] [id^="dsh-genui-card-"]`,
+				`:root[${ARM_ATTRIBUTE}] body .tiny-card`
+			].join(",\n");
+			return [
+				`:root[${ARM_ATTRIBUTE}] body {\n${lines.join("\n")}\n}`,
+				`${cardFont} {\n  --tv-font-family: ${stack} !important;\n}`
+			].join("\n");
 		}
 
 		/** Number of containers currently carrying the blur layer. */

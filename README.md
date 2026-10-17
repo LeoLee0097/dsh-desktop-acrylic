@@ -290,6 +290,12 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+- **0.9.22** — 两处都在「我们从来没设过那个 token」这一层，一行一个根因：
+
+  - **卡片的字体**：genui 卡片里的每个元素都带 `tiny-` 类，而卡片库给它们写的是 `font-family: var(--tv-font-family)`；`--tv-font-family` 又和那 247 个 `--tv-color-*` 一起声明在卡片的 ID 级调色板块里（Helvetica / Arial / PingFang…）。所以 body 上的字体到卡片边界就断了——**继承永远输给一条显式声明**。现在字体覆盖同时把 `--tv-font-family` 写到卡片根节点上（`[id^="dsh-genui-card-"]` + `.tiny-card`，带 `!important`，与配色用的是同一套打法）。
+  - **设置窗口的磨砂**：设置弹层的遮罩是 shell 自己的元素，它的样式是 `.mask { backdrop-filter: var(--dsw-mask-blur) }`，而 shell 把这个 token 的默认值定义成 **`none`**（`dsh-client-ui-theme` 的 `body{…}` 块，无 `!important`）。也就是说磨砂从来是「主题要自己填」的开关，填之前所有模态都是不带模糊的。我们以前只设了自家的 `--dwa-mask-blur`（那条只作用于插件自己画规则的元素），从来没碰过 shell 的这个。现在两份皮肤都写 `--dsw-mask-blur: blur(12px) saturate(1.1)`，一并覆盖设置窗口、快捷键弹窗等所有用标准遮罩的模态——不需要再靠 JS 去给元素打标记。
+  - 顺带把这两件事固化成构建期断言：皮肤缺 `--dsw-mask-blur` 就构建失败；字体覆盖里没有卡片根选择器或 `--tv-font-family` 也构建失败。
+
 - **0.9.21** — 补回诊断字段 `masks`：`report()` 的负载里少写了 `masks: maskCount`（早前插入调试字段时的编辑事故），所以快照里只看到 `maskDebug`、看不到计数。纯诊断修复，不影响渲染。
 
 - **0.9.20** — 修 `fontCount: 0`：字体扫描原先只在**设置行挂载时**才跑（写在 `useEffect` 里），所以只要没打开过设置窗口，诊断就一直显示 `builtin/0`——字体其实没问题，只是「量」从未发生。现在在插件激活时**主动扫一次**并缓存结果（`systemFontCache`），设置行直接用缓存，诊断首个快照即给出真实数字。实测宿主路由 `GET /dark-acrylic/fonts` 正常：**370 个字体、其中 37 个判为等宽**。

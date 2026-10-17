@@ -604,6 +604,16 @@ function buildFixedTokens(p) {
     // Frosted dim-mask spec: the overlay behind an open modal blurs whatever
     // of the interface shows through it. Radius follows the ACRYLIC knob.
     '--dwa-mask-blur': `${ACRYLIC.maskBlurPx}px`,
+    // The shell's own dim-mask blur is opt-in, and the default is *off*:
+    // `--dsw-mask-blur` ships as `none` in dsh-client-ui-theme, and the dialog
+    // overlay reads it directly —
+    //   .mask { backdrop-filter: var(--dsw-mask-blur) }
+    // — so every modal (the settings window included) gets an unfrosted mask
+    // until something fills the token in. Our `--dwa-mask-blur` never reaches it:
+    // that one is only read by the rules this plugin paints itself, and the mask
+    // is the shell's element, not ours. Filling the shell token is the whole fix
+    // — no DOM arming, no extra rule, and it covers every mask in the interface.
+    '--dsw-mask-blur': `blur(${ACRYLIC.maskBlurPx}px) saturate(1.1)`,
     // Native widgets cannot be translucent: the select popup is an OS-level
     // surface, so option rows need a solid colour from the palette.
     '--dwa-menu-solid': dark ? p.bg : p.bgDeepest,
@@ -1295,7 +1305,18 @@ export function buildFontCss(family, codeFamily) {
   const code = typeof codeFamily === 'string' ? codeFamily.replace(/[";{}]/g, '').trim() : ''
   const uiFallback = '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
   const codeFallback = '"SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace'
+  const stack = `${clean}, ${uiFallback}`
   const lines = [`  --dsw-font-family: ${clean}, ${uiFallback} !important;`]
   if (code.length > 0) lines.push(`  --ds-font-family-code: ${code}, ${codeFallback} !important;`)
-  return `:root[data-dwa-theme] body {\n${lines.join('\n')}\n}`
+  // Cards are drawn by the genui plugin's own component library, and it never
+  // reads the shell's font variable: every element carrying a `tiny-` class takes
+  // `font-family: var(--tv-font-family)`, and that variable is declared in the
+  // same id-scoped block as the card palette (Helvetica, Arial, PingFang…). A
+  // font on <body> therefore stops at the card boundary — the card font has to be
+  // declared on the card root, which is what everything inside inherits.
+  const cardFont = [`:root[data-dwa-theme] [id^="dsh-genui-card-"]`, `:root[data-dwa-theme] body .tiny-card`].join(',\n')
+  return [
+    `:root[data-dwa-theme] body {\n${lines.join('\n')}\n}`,
+    `${cardFont} {\n  --tv-font-family: ${stack} !important;\n}`
+  ].join('\n')
 }

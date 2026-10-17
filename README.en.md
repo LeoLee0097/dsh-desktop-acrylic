@@ -329,6 +329,12 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.9.22** — Two fixes that both reduce to a token we never set:
+
+  - **Card fonts.** Every element inside a genui card carries a `tiny-` class, and the card library styles those with `font-family: var(--tv-font-family)`. That variable is declared in the card's ID-scoped palette block, next to the 247 `--tv-color-*` tokens (Helvetica / Arial / PingFang…). A font on `<body>` therefore stops at the card boundary — **an inherited value never beats an explicit declaration**. The font override now also writes `--tv-font-family` on the card root (`[id^="dsh-genui-card-"]` plus `.tiny-card`, with `!important`), the same approach that already won for the card colours.
+  - **The settings window's frosted backdrop.** The dialog mask is the shell's own element: `.mask { backdrop-filter: var(--dsw-mask-blur) }`, and the shell defines that token as **`none`** (in `dsh-client-ui-theme`, a plain `body{…}` declaration, no `!important`). Frosting was always a knob for the theme to fill in, so until something fills it every modal renders without a blur. This plugin only ever set its own `--dwa-mask-blur`, which is read by rules it paints itself — never by the shell's mask. Both skins now set `--dsw-mask-blur: blur(12px) saturate(1.1)`, which covers the settings window and every other modal that uses the standard mask, with no DOM marking at all.
+  - Both are now build-time assertions: a skin without `--dsw-mask-blur`, or a font override that misses the card root or `--tv-font-family`, fails the build.
+
 - **0.9.21** — Restore the `masks` diagnostics field: the `report()` payload had lost `masks: maskCount` (an editing slip when the debug fields were added), so snapshots showed `maskDebug` without the count. Diagnostics only; rendering is untouched.
 
 - **0.9.20** — `fontCount: 0` fixed: the font scan used to run only inside the settings row’s `useEffect`, so unless that window had been opened the diagnostics kept reporting `builtin/0` — the fonts were fine, the measurement simply never happened. The scan now runs once at plugin activation and is cached (`systemFontCache`); the row starts from that cache, so the first diagnostics snapshot already carries a real number. Verified against the host route `GET /dark-acrylic/fonts`: **370 families, 37 classified as monospace**.

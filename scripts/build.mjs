@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, buildTinyBridgeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, buildFontCss, buildTinyBridgeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -150,6 +150,31 @@ if (ACRYLIC_ENABLED) {
   if (!Array.isArray(captured.HOST_SELECTORS) || captured.HOST_SELECTORS.length === 0) {
     throw new Error('build: host selector list is empty')
   }
+}
+// The settings-window frost is the shell's token, not ours: its dialog mask is
+// `backdrop-filter: var(--dsw-mask-blur)`, and the shell ships that as `none`.
+// Leaving it unset is what makes every modal look un-frosted, so the skin must
+// define it.
+for (const skin of SKINS) {
+  const value = skin.tokens['--dsw-mask-blur']
+  if (typeof value !== 'string' || !/^blur\([0-9.]+px\) saturate\([0-9.]+\)$/.test(value)) {
+    throw new Error(`build: skin ${skin.id} must set --dsw-mask-blur (got ${String(value)})`)
+  }
+}
+// The card font override: cards ignore the shell font variable, so the emitted
+// CSS has to declare the card stack on the card root itself.
+const fontCss = buildFontCss('Probe Mono', 'Probe Code')
+if (!fontCss.includes('--tv-font-family')) {
+  throw new Error('build: font override must bridge the card library font token')
+}
+if (!fontCss.includes('[id^="dsh-genui-card-"]')) {
+  throw new Error('build: font override must reach the genui card root')
+}
+if (!fontCss.includes('--ds-font-family-code')) {
+  throw new Error('build: font override must bridge the code font token')
+}
+if (!bundle.includes('--tv-font-family')) {
+  throw new Error('build: the client font override diverged from src/theme.mjs')
 }
 if (typeof captured.apply !== 'function') throw new Error('build: bundle exports no apply()')
 if (!Array.isArray(captured.inject)) throw new Error('build: bundle exports no inject list')
