@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MIN_TEXT_CONTRAST, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -209,19 +209,23 @@ for (const skin of SKINS) {
 }
 
 
-/* --------------------- readability guard (backgrounds) --------------------- */
+/* --------------------- translucency guards (backgrounds) ------------------- */
 
 /**
- * No surface may end up too transparent to read text on.
+ * Two guarantees, mirroring the policy in src/theme.mjs but deliberately owning
+ * its own numbers (see GUARD_* below):
  *
- * The palette already solves every surface alpha for a white backdrop, but a
- * later edit could reintroduce a low alpha (or a `transparent` value) and only
- * show up as washed-out text at runtime. This guard composites each
- * text-bearing surface over white and fails the build when the contrast against
- * `--dsw-alias-label-primary` drops below MIN_TEXT_CONTRAST.
+ *  1. no text-bearing surface may be so transparent that it reads as a hole;
+ *  2. with the ground painted underneath — root, then canvas, then the surface
+ *     — the composited contrast must stay high.
+ *
+ * An earlier version demanded that every surface reach AA *on its own*, which
+ * made the interface solid; these keep the look while still refusing the
+ * 1.1–1.4:1 values that caused the washed-out reports.
  */
 const NON_TEXT_SURFACE = [/^--dsw-alias-bg-mask-/, /^--dsw-alias-bg-skeleton$/]
 const TEXT_SURFACE = [/^--dsw-alias-bg-/, /^--dsw-specific-/, /^--dwa-(root|canvas)-base$/, /^--dwa-panel-fill$/]
+const GROUNDS = ['--dwa-root-base', '--dwa-canvas-base']
 
 const parseColour = (value) => {
   const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/.exec(value)
@@ -240,27 +244,47 @@ const parseColour = (value) => {
 }
 
 const WHITE = { r: 255, g: 255, b: 255 }
-const readabilityFailures = []
+
+// Guard policy, intentionally independent of src/theme.mjs so that relaxing the
+// tuning knobs cannot quietly disarm the check.
+const GUARD_MIN_ALPHA = 0.42
+const GUARD_MIN_ALONE = 2.5
+const GUARD_MIN_COMPOSED = 7
+
+const translucencyFailures = []
 for (const skin of SKINS) {
   const textColour = parseColour(skin.tokens['--dsw-alias-label-primary'])
+  if (textColour === null) continue
+  let ground = WHITE
+  for (const key of GROUNDS) {
+    const colour = parseColour(String(skin.tokens[key]))
+    if (colour !== null) ground = compositeOver(colour, colour.a, ground)
+  }
   for (const [token, value] of Object.entries(skin.tokens)) {
     if (!TEXT_SURFACE.some((pattern) => pattern.test(token))) continue
     if (NON_TEXT_SURFACE.some((pattern) => pattern.test(token))) continue
     const colour = parseColour(String(value))
-    if (colour === null || textColour === null) continue
-    const composed = colour.a >= 1 ? colour : compositeOver(colour, colour.a, WHITE)
+    if (colour === null) continue
+    const alone = contrastRatio(textColour, compositeOver(colour, colour.a, WHITE))
+    if (alone < GUARD_MIN_ALONE && colour.a < GUARD_MIN_ALPHA) {
+      translucencyFailures.push(
+        `${skin.id} ${token} reads as a hole: alpha ${colour.a} < ${GUARD_MIN_ALPHA} and ${alone.toFixed(2)}:1 over white`
+      )
+      continue
+    }
+    const composed = compositeOver(colour, colour.a, ground)
     const ratio = contrastRatio(textColour, composed)
-    if (ratio < MIN_TEXT_CONTRAST) {
-      readabilityFailures.push(`${skin.id} ${token} = ${value} -> ${ratio.toFixed(2)}:1 < ${MIN_TEXT_CONTRAST}:1`)
+    if (ratio < GUARD_MIN_COMPOSED) {
+      translucencyFailures.push(`${skin.id} ${token} composed ${ratio.toFixed(2)}:1 < ${GUARD_MIN_COMPOSED}:1`)
     }
   }
 }
-if (readabilityFailures.length > 0) {
-  console.error('build: surfaces too transparent to read text on:')
-  for (const line of readabilityFailures) console.error(`  ${line}`)
+if (translucencyFailures.length > 0) {
+  console.error('build: translucency guard failed:')
+  for (const line of translucencyFailures) console.error(`  ${line}`)
   process.exit(1)
 }
-console.log(`readability: every text-bearing surface reaches ${MIN_TEXT_CONTRAST}:1 over a white backdrop`)
+console.log(`translucency: no surface reads as a hole; composed >= ${GUARD_MIN_COMPOSED}:1`)
 
 // Drop theme files that no longer correspond to a skin.
 const removed = []

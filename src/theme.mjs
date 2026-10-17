@@ -274,22 +274,27 @@ function surfaceTable(p) {
 const MAX_SURFACE_ALPHA = 0.85
 
 /**
- * Readability floor for surface alphas.
+ * Translucency policy for surface alphas.
  *
- * A translucent surface only stays readable while enough of its own colour shows
- * through. Over the worst realistic backdrop — the plain white window fill that
- * appeared whenever the desktop app painted no material — the palette's
- * `--dsw-alias-label-primary` text needs a minimum effective alpha, and that
- * minimum is different for every surface colour: a light surface needs more
- * alpha than a dark one to reach the same contrast.
+ * Two guarantees, deliberately kept apart:
  *
- * So the alpha is not chosen by taste alone: every surface token is solved for
- * the smallest alpha that keeps `MIN_TEXT_CONTRAST` against a white backdrop,
- * and the table value acts as a *lower bound on transparency* rather than the
- * final number. Surfaces that never carry text (masks, skeletons) are exempt —
- * forcing them opaque would only darken other people's content.
+ *  1. **Normal path** — `--dwa-root-base` and `--dwa-canvas-base` paint first,
+ *     so a surface is composited onto a dark ground and text lands around
+ *     10:1. That ground is what actually carries readability, and it is why the
+ *     surface alphas can stay modest.
+ *  2. **Degraded path** — if only the tokens apply (stylesheet not mounted, a
+ *     theme reset mid-flight), the surface is all that is left over the white
+ *     window fill. It cannot reach AA there, but it must not read as an empty
+ *     hole: `MIN_SURFACE_CONTRAST` (2.5:1) and `MIN_SURFACE_ALPHA` (0.42) stop
+ *     that, where the original 0.08–0.10 sat at 1.1–1.4:1.
+ *
+ * The first design overshot in the other direction: solving every surface for
+ * 4.5:1 *on its own* pushed the canvas to 0.73 and made the interface solid.
+ * The numbers here are the retreat from that.
  */
-export const MIN_TEXT_CONTRAST = 4.5
+export const MIN_SURFACE_CONTRAST = 2.5
+export const MIN_SURFACE_ALPHA = 0.42
+export const MIN_COMPOSED_CONTRAST = 7
 
 /** Tokens that dim or decorate instead of holding text. */
 const NON_TEXT_SURFACES = [/^--dsw-alias-bg-mask-/, /^--dsw-alias-bg-skeleton$/]
@@ -329,10 +334,13 @@ export function compositeOver(colour, alpha, backdrop) {
   }
 }
 
-/** Smallest alpha (2-decimal) that keeps the text readable on this colour. */
-function readabilityAlpha(colour, textColour, backdrop = WHITE) {
-  for (let alpha = 0.02; alpha <= 1; alpha += 0.01) {
-    if (contrastRatio(textColour, compositeOver(colour, alpha, backdrop)) >= MIN_TEXT_CONTRAST) {
+/**
+ * Smallest alpha (2-decimal) at which this colour stops reading as an empty hole
+ * over a white backdrop. This is the degraded-path floor, not an AA claim.
+ */
+function surfaceFloorAlpha(colour, textColour) {
+  for (let alpha = MIN_SURFACE_ALPHA; alpha <= 1; alpha += 0.01) {
+    if (contrastRatio(textColour, compositeOver(colour, alpha, WHITE)) >= MIN_SURFACE_CONTRAST) {
       return Number(alpha.toFixed(2))
     }
   }
@@ -346,11 +354,16 @@ function buildSurfaceTokens(p) {
     const minimum = typeof floor === 'number' ? floor : 0.02
     const colour = hexToRgb(hex)
     const exempt = NON_TEXT_SURFACES.some((pattern) => pattern.test(token))
-    const readable =
-      exempt || colour === null || textColour === null ? 0 : readabilityAlpha(colour, textColour)
-    // The table cap keeps the design honest; the solved readability floor may
-    // exceed it (dark layer 3 needs 0.87), and readability wins.
-    const value = Math.max(Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum)), readable)
+    const tableValue = Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum))
+    // Keep the design value whenever it already clears the "reads as a hole"
+    // threshold — the light palette's 0.30 clears it comfortably (8.7:1), so it
+    // must not be dragged up. Only surfaces that would look like an empty hole
+    // (the dark palette's 0.08–0.10) get raised to the solved floor.
+    const clearsFloor =
+      exempt || colour === null || textColour === null
+        ? true
+        : contrastRatio(textColour, compositeOver(colour, tableValue, WHITE)) >= MIN_SURFACE_CONTRAST
+    const value = clearsFloor ? tableValue : Math.max(tableValue, surfaceFloorAlpha(colour, textColour))
     tokens[token] = rgba(hex, value)
   }
   return tokens
@@ -368,7 +381,7 @@ function buildFixedTokens(p) {
     // plain white window fill, so "transparent" meant "washed out". It is now a
     // near-opaque ground: 4% of the window may show through, but no surface can
     // be fully transparent any more.
-    '--dwa-root-base': dark ? rgba(p.bg, 0.96) : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    '--dwa-root-base': dark ? rgba(p.bg, 0.90) : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Fail-safe canvas. The material used to live only on `body::before`, so if
     // that pseudo-element ever failed to paint (a stacking-context change, a
     // recomposition that replaced the node, a filter that was dropped), the page
@@ -376,7 +389,7 @@ function buildFixedTokens(p) {
     // intermittent "fully transparent" symptom. The same field is therefore
     // painted on `body` itself as well, over a near-opaque base, so the worst
     // case is a plainer canvas rather than an invisible one.
-    '--dwa-canvas-base': dark ? `color-mix(in srgb, ${p.bg} 88%, transparent)` : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    '--dwa-canvas-base': dark ? `color-mix(in srgb, ${p.bg} 80%, transparent)` : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Frosted panel spec for dialogs: 25% transparency, 30px blur.
     '--dwa-panel-fill': rgba(p.bgTransparent, 0.75),
     '--dwa-panel-blur': '30px',
