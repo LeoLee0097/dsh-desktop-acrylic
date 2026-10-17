@@ -957,7 +957,10 @@ window.__ModuleLoader__.load({
 			select: {
 				border: "1px solid var(--dsw-alias-border-l2)",
 				borderRadius: "6px",
-				background: "transparent",
+				// A form field must not be a transparent hole: it gets the same
+				// solved surface other inputs use, so its own text is readable
+				// even before the panel behind it is considered.
+				background: "var(--dsw-specific-input-major)",
 				color: "var(--dsw-alias-label-primary)",
 				font: "inherit",
 				fontSize: "12px",
@@ -985,7 +988,9 @@ window.__ModuleLoader__.load({
 				boxSizing: "border-box",
 				border: "none",
 				borderBottom: "1px solid var(--dsw-alias-border-l2)",
-				background: "transparent",
+				// Sits inside the opaque picker list, but it still gets a surface
+				// of its own rather than being a transparent hole.
+				background: "var(--dsw-alias-bg-layer-1)",
 				color: "var(--dsw-alias-label-primary)",
 				font: "inherit",
 				fontSize: "12px",

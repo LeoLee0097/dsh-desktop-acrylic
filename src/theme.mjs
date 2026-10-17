@@ -273,11 +273,84 @@ function surfaceTable(p) {
 /** Highest alpha any surface may reach — above this the glass reads as solid. */
 const MAX_SURFACE_ALPHA = 0.85
 
+/**
+ * Readability floor for surface alphas.
+ *
+ * A translucent surface only stays readable while enough of its own colour shows
+ * through. Over the worst realistic backdrop — the plain white window fill that
+ * appeared whenever the desktop app painted no material — the palette's
+ * `--dsw-alias-label-primary` text needs a minimum effective alpha, and that
+ * minimum is different for every surface colour: a light surface needs more
+ * alpha than a dark one to reach the same contrast.
+ *
+ * So the alpha is not chosen by taste alone: every surface token is solved for
+ * the smallest alpha that keeps `MIN_TEXT_CONTRAST` against a white backdrop,
+ * and the table value acts as a *lower bound on transparency* rather than the
+ * final number. Surfaces that never carry text (masks, skeletons) are exempt —
+ * forcing them opaque would only darken other people's content.
+ */
+export const MIN_TEXT_CONTRAST = 4.5
+
+/** Tokens that dim or decorate instead of holding text. */
+const NON_TEXT_SURFACES = [/^--dsw-alias-bg-mask-/, /^--dsw-alias-bg-skeleton$/]
+
+const WHITE = { r: 255, g: 255, b: 255 }
+
+/** `#rrggbb` to channel values; `null` for anything else. */
+function hexToRgb(hex) {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim())
+  if (match === null) return null
+  const value = parseInt(match[1], 16)
+  return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 }
+}
+
+/** WCAG 2.x relative luminance. */
+function relativeLuminance({ r, g, b }) {
+  const channel = (v) => {
+    const s = v / 255
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  }
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+}
+
+/** WCAG contrast ratio between two opaque colours. */
+export function contrastRatio(a, b) {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** Source-over compositing of `colour` at `alpha` onto an opaque backdrop. */
+export function compositeOver(colour, alpha, backdrop) {
+  return {
+    r: Math.round(colour.r * alpha + backdrop.r * (1 - alpha)),
+    g: Math.round(colour.g * alpha + backdrop.g * (1 - alpha)),
+    b: Math.round(colour.b * alpha + backdrop.b * (1 - alpha))
+  }
+}
+
+/** Smallest alpha (2-decimal) that keeps the text readable on this colour. */
+function readabilityAlpha(colour, textColour, backdrop = WHITE) {
+  for (let alpha = 0.02; alpha <= 1; alpha += 0.01) {
+    if (contrastRatio(textColour, compositeOver(colour, alpha, backdrop)) >= MIN_TEXT_CONTRAST) {
+      return Number(alpha.toFixed(2))
+    }
+  }
+  return 1
+}
+
 function buildSurfaceTokens(p) {
   const tokens = {}
+  const textColour = hexToRgb(p.fg)
   for (const [token, hex, alpha, floor] of surfaceTable(p)) {
     const minimum = typeof floor === 'number' ? floor : 0.02
-    const value = Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum))
+    const colour = hexToRgb(hex)
+    const exempt = NON_TEXT_SURFACES.some((pattern) => pattern.test(token))
+    const readable =
+      exempt || colour === null || textColour === null ? 0 : readabilityAlpha(colour, textColour)
+    // The table cap keeps the design honest; the solved readability floor may
+    // exceed it (dark layer 3 needs 0.87), and readability wins.
+    const value = Math.max(Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum)), readable)
     tokens[token] = rgba(hex, value)
   }
   return tokens
@@ -290,11 +363,12 @@ function buildSurfaceTokens(p) {
 function buildFixedTokens(p) {
   const dark = p.colorScheme === 'dark'
   return {
-    // Page base: the LIGHT palette gets a mostly-opaque ground, because its
-    // dark text needs a known backdrop. The DARK palette stays truly
-    // transparent so the effect is real — its light text survives any
-    // backdrop, and the translucent surfaces can show the material field.
-    '--dwa-root-base': dark ? 'transparent' : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
+    // Page base. The DARK palette used to keep this `transparent`, on the theory
+    // that light text survives any backdrop; in practice the backdrop is the
+    // plain white window fill, so "transparent" meant "washed out". It is now a
+    // near-opaque ground: 4% of the window may show through, but no surface can
+    // be fully transparent any more.
+    '--dwa-root-base': dark ? rgba(p.bg, 0.96) : `color-mix(in srgb, ${p.bg} 55%, transparent)`,
     // Fail-safe canvas. The material used to live only on `body::before`, so if
     // that pseudo-element ever failed to paint (a stacking-context change, a
     // recomposition that replaced the node, a filter that was dropped), the page
@@ -740,14 +814,14 @@ export function buildBaseCss() {
     // The same field on `body` itself: this is the fail-safe that keeps the
     // interface visible even when the pseudo-element above does not paint.
     `${arm} body${suffix} {`,
-    "  background-color: var(--dwa-canvas-base, var(--dwa-root-base, transparent));",
+    "  background-color: var(--dwa-canvas-base, var(--dwa-root-base, #16161e));",
     `  background-image:\n    ${materialStack(palette)};`,
     "  background-attachment: fixed;",
     "}"
   ].join('\n')
   return [
     `${arm} {`,
-    "  background: var(--dwa-root-base, transparent);",
+    "  background: var(--dwa-root-base, #16161e);",
     "}",
     // Native widgets — the font dropdowns, their option list, scrollbars — follow
     // `color-scheme`. Without this the select popup stays light even on the dark

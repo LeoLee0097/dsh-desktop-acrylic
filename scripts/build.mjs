@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MIN_TEXT_CONTRAST, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -207,6 +207,60 @@ for (const skin of SKINS) {
   written.add(file)
   writeFileSync(join(themesDir, file), `${JSON.stringify(skin, null, 2)}\n`)
 }
+
+
+/* --------------------- readability guard (backgrounds) --------------------- */
+
+/**
+ * No surface may end up too transparent to read text on.
+ *
+ * The palette already solves every surface alpha for a white backdrop, but a
+ * later edit could reintroduce a low alpha (or a `transparent` value) and only
+ * show up as washed-out text at runtime. This guard composites each
+ * text-bearing surface over white and fails the build when the contrast against
+ * `--dsw-alias-label-primary` drops below MIN_TEXT_CONTRAST.
+ */
+const NON_TEXT_SURFACE = [/^--dsw-alias-bg-mask-/, /^--dsw-alias-bg-skeleton$/]
+const TEXT_SURFACE = [/^--dsw-alias-bg-/, /^--dsw-specific-/, /^--dwa-(root|canvas)-base$/, /^--dwa-panel-fill$/]
+
+const parseColour = (value) => {
+  const rgba = /^rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)$/.exec(value)
+  if (rgba !== null) return { r: +rgba[1], g: +rgba[2], b: +rgba[3], a: +rgba[4] }
+  const hex = /^#([0-9a-f]{6})$/i.exec(value)
+  if (hex !== null) {
+    const n = parseInt(hex[1], 16)
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 }
+  }
+  const mixed = /^color-mix\(in srgb, #([0-9a-f]{6}) (\d+)%, transparent\)$/i.exec(value)
+  if (mixed !== null) {
+    const n = parseInt(mixed[1], 16)
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: Number(mixed[2]) / 100 }
+  }
+  return null
+}
+
+const WHITE = { r: 255, g: 255, b: 255 }
+const readabilityFailures = []
+for (const skin of SKINS) {
+  const textColour = parseColour(skin.tokens['--dsw-alias-label-primary'])
+  for (const [token, value] of Object.entries(skin.tokens)) {
+    if (!TEXT_SURFACE.some((pattern) => pattern.test(token))) continue
+    if (NON_TEXT_SURFACE.some((pattern) => pattern.test(token))) continue
+    const colour = parseColour(String(value))
+    if (colour === null || textColour === null) continue
+    const composed = colour.a >= 1 ? colour : compositeOver(colour, colour.a, WHITE)
+    const ratio = contrastRatio(textColour, composed)
+    if (ratio < MIN_TEXT_CONTRAST) {
+      readabilityFailures.push(`${skin.id} ${token} = ${value} -> ${ratio.toFixed(2)}:1 < ${MIN_TEXT_CONTRAST}:1`)
+    }
+  }
+}
+if (readabilityFailures.length > 0) {
+  console.error('build: surfaces too transparent to read text on:')
+  for (const line of readabilityFailures) console.error(`  ${line}`)
+  process.exit(1)
+}
+console.log(`readability: every text-bearing surface reaches ${MIN_TEXT_CONTRAST}:1 over a white backdrop`)
 
 // Drop theme files that no longer correspond to a skin.
 const removed = []
