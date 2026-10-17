@@ -711,7 +711,17 @@ window.__ModuleLoader__.load({
 
 
 		/** Snapshot of what the card surfaces actually compute to. */
+		/**
+		 * Diagnostics are cheap but not free: probeCardRules walks every rule of
+		 * every stylesheet, and report() runs on every mutation-triggered rearm. The
+		 * result only changes when the DOM structure changes, so it is memoised for
+		 * the life of the page.
+		 */
+		let cardProbeCache = null;
+		let cardRuleCache = null;
+
 		function probeCardSurfaces() {
+			if (cardProbeCache !== null) return cardProbeCache;
 			const out = [];
 			try {
 				const nodes = document.querySelectorAll(
@@ -736,6 +746,7 @@ window.__ModuleLoader__.load({
 			} catch {
 				// diagnostics only
 			}
+			cardProbeCache = out;
 			return out;
 		}
 
@@ -750,6 +761,7 @@ window.__ModuleLoader__.load({
 		 * the node and declare `--tv-color-bg`.
 		 */
 		function probeCardRules() {
+			if (cardRuleCache !== null) return cardRuleCache;
 			const out = [];
 			try {
 				const card = document.querySelector(".tiny-card, [class*='tiny-card']");
@@ -787,6 +799,7 @@ window.__ModuleLoader__.load({
 			} catch {
 				out.push("probe-error");
 			}
+			cardRuleCache = out;
 			return out;
 		}
 

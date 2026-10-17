@@ -290,6 +290,11 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+- **0.9.12–0.9.15** — 卡片配色排查（三次尝试 + 一次回滚 + 一支探针）：影子宿主回填（被探针证伪：卡片 `shadow=false`）、元素级类规则（输给库的 ID 选择器）、按需回滚止血、新增 `cardRules` 诊断。**结论：卡片库用 `#dsh-genui-card-N` 注入调色板，特异性 (1,0,0)，任何类规则都赢不了。**
+- **0.9.16** — 按探针结论修：桥接同时挂 `[id^="dsh-genui-card-"]`，每条声明加 `!important`（ID 规则无法压过 `!important`）。
+- **0.9.17** — 改按「不要背景」处理：卡片容器级 token 全部设为 `transparent`，并清除卡片根的 `background-color` / `background-image`，直接透出页面材质场；文字 / 边框 / 控件 / 代码块 token 保持原值，确保卡片内仍可读。
+- **0.9.18** — review 收尾：① 桥接选择器从全局 `[class*="tiny-"]` **收窄到卡片子树**（否则卡片外的 tooltip / popover / 下拉也会被改成透明）；② `probeCardSurfaces` / `probeCardRules` 加缓存，避免每次 DOM 变动触发 rearm 时都遍历全部样式表规则。
+
 - **0.9.11** — 卡片库桥接补全：tiny-vue 一共读取 **247 个** `--tv-color-*` 名称，0.9.10 只补到 60 个，剩下的按钮动作族（`act-*` 105 个）、边框（`border-*` 32）、反色文字（`text-inverse` 25）、空数据（`no-data-*` 22）、状态图标（`icon-*` / `error/warn/success-icon`）仍会退回库默认值——这就是「别的元素还不统一」。现在按族生成整表：**249 条**桥接覆盖它读到的全部名称，取值一律指向我们的别名 token（品牌色 / 三层表面 / 边框 / 标签 / 状态色），两套皮肤自动同步；token 总数 221 → **410**，悬空引用 0。
 
 - **0.9.10** — 修 QA 卡片（genui / tiny-vue）底色不统一：卡片库把整张调色板声明在 `:root` 上，并把 `--tv-color-*` 全部映射到它自己的基础色，**我们只桥接了 22 个**。于是卡体用的 `--tv-color-bg`、嵌套面用的 `bg-secondary` / `bg-primary` / `bg-4` / `bg-header` 等全部退回库的默认值——亮色是纯白 `#fff`、暗色是中性灰（截图里 `#ffffff` 与 `#1a1a1a` / `#262626` 正是它们），与我们的蓝调表面完全不同，这就是「QA 框效果不统一」。现在桥接扩到 **60 条**（bg 面 / 交互 / 文字 / 图标 / 边框 / 状态），并补上卡片库还会要的 `--dsw-alias-state-error-tertiary`。桥接值仍指向我们自己的别名 token，所以两套皮肤自动同步；token 总数 182 → **221**。

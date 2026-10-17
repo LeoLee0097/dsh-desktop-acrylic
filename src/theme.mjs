@@ -1198,10 +1198,13 @@ export function buildTinyBridgeCss() {
     '--tv-color-border-divider': 'var(--dsw-alias-border-l1)',
     '--tv-color-border-container': 'var(--dsw-alias-border-l2)'
   }
+  // Scoped to the card itself: the declarables then inherit down through the whole
+  // card, while tooltips, popovers and selects rendered elsewhere keep their own
+  // (opaque) surfaces. A global [class*="tiny-"] match would make those
+  // transparent too.
   const selectors = [
     ':root[data-dwa-theme] [id^="dsh-genui-card-"]',
-    ':root[data-dwa-theme] body [class*="tiny-card"]',
-    ':root[data-dwa-theme] body [class*="tiny-"]'
+    ':root[data-dwa-theme] body .tiny-card'
   ].join(',\n')
   const lines = [selectors + ' {']
   for (const [name, value] of Object.entries({ ...TV_BRIDGE_EXTRA, ...curated })) {
@@ -1212,8 +1215,7 @@ export function buildTinyBridgeCss() {
   // variable; clear it on the card root so no opaque block is left behind.
   lines.push(
     ':root[data-dwa-theme] [id^="dsh-genui-card-"],\n' +
-      ':root[data-dwa-theme] body .tiny-card,\n' +
-      ':root[data-dwa-theme] body [class*="tiny-card--"] {\n' +
+      ':root[data-dwa-theme] body .tiny-card {\n' +
       '  background-color: transparent !important;\n' +
       '  background-image: none !important;\n' +
       '}'
