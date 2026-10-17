@@ -14,7 +14,7 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
+import { ACRYLIC, ACRYLIC_ENABLED, DEFAULT_SKIN, FROST_ATTRIBUTE, FROST_SELECTORS, HOST_ATTRIBUTE, HOST_SELECTORS, MASK_ATTRIBUTE, MONO_FONTS, MONO_FONT_BASES, MONO_FONT_SUFFIXES, NATIVE_SKIN, PANEL_ATTRIBUTE, PANEL_FLAT_ATTRIBUTE, PANEL_SELECTORS, SKINS, buildBaseCss, buildChromeCss, buildTinyBridgeCss, compositeOver, contrastRatio } from '../src/theme.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..')
@@ -32,7 +32,7 @@ function indent(text, tabs) {
     .join('\n')
 }
 
-const chromeCss = buildChromeCss()
+const chromeCss = buildChromeCss() + (ACRYLIC_ENABLED ? '\n' + buildTinyBridgeCss() : '')
 const baseCss = buildBaseCss()
 const template = readFileSync(tplPath, 'utf8')
 

@@ -639,8 +639,8 @@ function buildFixedTokens(p) {
     // --tv-color-bg is the card body (white in light, neutral grey in dark)
     // and bg-secondary is the lighter nested surface; both are used far more
     // often than bg-1/2/3, which is why the cards ignored the theme.
-    '--tv-color-bg': 'var(--dsw-alias-bg-layer-1)',
-    '--tv-color-bg-secondary': 'var(--dsw-alias-bg-base)',
+    '--tv-color-bg': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-secondary': 'var(--dsw-alias-bg-layer-1)',
     '--tv-color-bg-primary': 'var(--dsw-alias-bg-layer-2)',
     '--tv-color-bg-control': 'var(--dsw-specific-input-major)',
     '--tv-color-bg-control-unactive': 'var(--dsw-specific-input-major)',
@@ -1159,6 +1159,69 @@ function materialStack(p) {
  * Floating surfaces need no rule here —they blur through
  * `--dsw-menu-backdrop-filter`, which every skin sets as a token.
  */
+/**
+ * The card library's palette, as a stylesheet rule.
+ *
+ * The live probe shows the cards are plain light-DOM elements that compute the
+ * library's own dark-palette value even though <body> carries our token inline:
+ * a class rule between body and the card wins the cascade. Declaring the same
+ * variables on the card elements themselves (a selector more specific than any
+ * of the library's class rules) beats that, and the values still inherit down to
+ * the card's children.
+ */
+export function buildTinyBridgeCss() {
+  const names = Object.keys(TV_BRIDGE_EXTRA)
+  const declared = [
+    '--tv-color-bg',
+    '--tv-color-bg-secondary',
+    '--tv-color-bg-primary',
+    '--tv-color-bg-header',
+    '--tv-color-bg-2',
+    '--tv-color-bg-3',
+    '--tv-color-bg-4',
+    '--tv-color-bg-gray-1',
+    '--tv-color-bg-gray-2',
+    '--tv-color-text',
+    '--tv-color-text-secondary',
+    '--tv-color-text-placeholder',
+    '--tv-color-border',
+    '--tv-color-border-divider',
+    '--tv-color-border-container'
+  ]
+  const values = {
+    '--tv-color-bg': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-secondary': 'var(--dsw-alias-bg-layer-1)',
+    '--tv-color-bg-primary': 'var(--dsw-alias-bg-layer-3)',
+    '--tv-color-bg-header': 'var(--dsw-alias-bg-layer-3)',
+    '--tv-color-bg-2': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-3': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-4': 'var(--dsw-alias-bg-layer-3)',
+    '--tv-color-bg-gray-1': 'var(--dsw-alias-bg-layer-2)',
+    '--tv-color-bg-gray-2': 'var(--dsw-alias-bg-layer-3)',
+    '--tv-color-text': 'var(--dsw-alias-label-primary)',
+    '--tv-color-text-secondary': 'var(--dsw-alias-label-secondary)',
+    '--tv-color-text-placeholder': 'var(--dsw-alias-label-tertiary)',
+    '--tv-color-border': 'var(--dsw-alias-border-l2)',
+    '--tv-color-border-divider': 'var(--dsw-alias-border-l1)',
+    '--tv-color-border-container': 'var(--dsw-alias-border-l2)'
+  }
+  const lines = [
+    ':root[data-dwa-theme] body [class*="tiny-"],',
+    ':root[data-dwa-theme] body [class*="tv-"] {'
+  ]
+  for (const name of declared) lines.push(`  ${name}: ${values[name]};`)
+  lines.push('}')
+  // Also cover every generated bridge name, so nothing falls back.
+  const rest = names.filter((name) => !declared.includes(name))
+  if (rest.length > 0) {
+    lines.push(':root[data-dwa-theme] body [class*="tiny-card"],')
+    lines.push(':root[data-dwa-theme] body [class*="tiny-"] {')
+    for (const name of rest) lines.push(`  ${name}: ${TV_BRIDGE_EXTRA[name]};`)
+    lines.push('}')
+  }
+  return lines.join('\n')
+}
+
 export function buildChromeCss() {
   if (!ACRYLIC_ENABLED) return ''
   const blur = `blur(${ACRYLIC.blurPx}px) saturate(${ACRYLIC.saturate})`
