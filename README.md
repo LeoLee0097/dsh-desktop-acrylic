@@ -290,6 +290,8 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+- **0.9.19** — 清掉死代码：`SHADOW_HOST_BRIDGE_ENABLED` 与 `armShadowHosts()` 删除（探针已证明卡片是普通光 DOM 元素 `shadow=false`，该函数从未真正执行）。客户端 bundle 因此少了一段永远不会运行的分支，诊断字段 `shadowHosts` 一并移除。
+
 - **0.9.12–0.9.15** — 卡片配色排查（三次尝试 + 一次回滚 + 一支探针）：影子宿主回填（被探针证伪：卡片 `shadow=false`）、元素级类规则（输给库的 ID 选择器）、按需回滚止血、新增 `cardRules` 诊断。**结论：卡片库用 `#dsh-genui-card-N` 注入调色板，特异性 (1,0,0)，任何类规则都赢不了。**
 - **0.9.16** — 按探针结论修：桥接同时挂 `[id^="dsh-genui-card-"]`，每条声明加 `!important`（ID 规则无法压过 `!important`）。
 - **0.9.17** — 改按「不要背景」处理：卡片容器级 token 全部设为 `transparent`，并清除卡片根的 `background-color` / `background-image`，直接透出页面材质场；文字 / 边框 / 控件 / 代码块 token 保持原值，确保卡片内仍可读。

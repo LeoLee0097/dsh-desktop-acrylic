@@ -329,6 +329,8 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.9.19** — Dead code removed: `SHADOW_HOST_BRIDGE_ENABLED` and `armShadowHosts()` are gone. The probe proved the cards are plain light-DOM elements (`shadow=false`), so the function never actually ran; the `shadowHosts` diagnostics field went with it.
+
 - **0.9.12–0.9.15** — Card colour investigation (three attempts, one rollback, one probe): the shadow-host pass (disproved by the probe: the cards report `shadow=false`), an element-level class rule (lost to the library id selector), a rollback to stop the display breakage, and a new `cardRules` diagnostic. **Conclusion: the library injects its palette behind `#dsh-genui-card-N` — specificity (1,0,0) — so no class rule can win.**
 - **0.9.16** — Fixed on that evidence: the bridge also targets `[id^="dsh-genui-card-"]` and every declaration carries `!important`, which an id rule cannot outrank.
 - **0.9.17** — Switched to "no background": the card container tokens are `transparent` and the card root has `background-color` / `background-image` cleared, so the page material shows through. Text, border, control and code-block tokens keep their values so the card stays readable.
