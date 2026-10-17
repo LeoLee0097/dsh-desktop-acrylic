@@ -35,7 +35,8 @@
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check:fonts": "node scripts/check-fonts.mjs"
+    "check:fonts": "node scripts/check-fonts.mjs",
+    "prepublishOnly": "node scripts/build.mjs"
   },
   "dsh": {
     "bundle": {
@@ -56,5 +57,8 @@
     "@deepseek-ai/dsh-client-locale": "^0.2.0-rc.1 || ^0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-theme": "^0.2.0-rc.1 || ^0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-settings-general": "^0.2.0-rc.1 || ^0.2.1-rc.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
