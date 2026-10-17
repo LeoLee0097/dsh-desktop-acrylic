@@ -653,8 +653,21 @@ export const PANEL_FLAT_ATTRIBUTE = 'data-dwa-panel-flat'
 /** Attribute the runtime sets on the dim mask behind an open dialog. */
 export const MASK_ATTRIBUTE = 'data-dwa-mask'
 
-/** Dialogs that qualify for the frosted-panel treatment. */
-export const PANEL_SELECTORS = ['[role="dialog"]', 'dialog']
+/**
+ * Dialogs that qualify for the frosted-panel treatment.
+ *
+ * The shell's settings window is a portal whose overlay is `role="presentation"`
+ * and whose panel carries `role="dialog" aria-modal="true"` plus
+ * `data-shortcut-modal="settings"`. The plain role selector already matches it,
+ * but the two extra selectors keep working if the shell ever drops the role or
+ * moves the modal marker (0.2.1 renamed things once already).
+ */
+export const PANEL_SELECTORS = [
+  '[role="dialog"]',
+  'dialog',
+  '[aria-modal="true"]',
+  '[data-shortcut-modal]'
+]
 
 /**
  * Frosted panel CSS for dialogs (the settings window among them).
