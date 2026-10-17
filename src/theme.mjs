@@ -1169,33 +1169,16 @@ function materialStack(p) {
  * of the library's class rules) beats that, and the values still inherit down to
  * the card's children.
  */
-export const TINY_BRIDGE_ENABLED = false
+export const TINY_BRIDGE_ENABLED = true
 
 export function buildTinyBridgeCss() {
-  // Rolled back behind a switch: the element-level rule is the last change that
-  // preceded the reported display breakage, so it ships disabled until the
-  // screenshot shows what actually broke.
+  // The card library injects its palette through a <style> whose selector is the
+  // card root's id (#dsh-genui-card-N). That is specificity 1,0,0, so a plain
+  // class rule loses no matter how specific — only !important (or an inline
+  // declaration) wins. The declarations below therefore carry !important and
+  // target the id pattern as well as the readable class names.
   if (!TINY_BRIDGE_ENABLED) return ''
-
-  const names = Object.keys(TV_BRIDGE_EXTRA)
-  const declared = [
-    '--tv-color-bg',
-    '--tv-color-bg-secondary',
-    '--tv-color-bg-primary',
-    '--tv-color-bg-header',
-    '--tv-color-bg-2',
-    '--tv-color-bg-3',
-    '--tv-color-bg-4',
-    '--tv-color-bg-gray-1',
-    '--tv-color-bg-gray-2',
-    '--tv-color-text',
-    '--tv-color-text-secondary',
-    '--tv-color-text-placeholder',
-    '--tv-color-border',
-    '--tv-color-border-divider',
-    '--tv-color-border-container'
-  ]
-  const values = {
+  const curated = {
     '--tv-color-bg': 'var(--dsw-alias-bg-layer-2)',
     '--tv-color-bg-secondary': 'var(--dsw-alias-bg-layer-1)',
     '--tv-color-bg-primary': 'var(--dsw-alias-bg-layer-3)',
@@ -1212,20 +1195,16 @@ export function buildTinyBridgeCss() {
     '--tv-color-border-divider': 'var(--dsw-alias-border-l1)',
     '--tv-color-border-container': 'var(--dsw-alias-border-l2)'
   }
-  const lines = [
-    ':root[data-dwa-theme] body [class*="tiny-"],',
-    ':root[data-dwa-theme] body [class*="tv-"] {'
-  ]
-  for (const name of declared) lines.push(`  ${name}: ${values[name]};`)
-  lines.push('}')
-  // Also cover every generated bridge name, so nothing falls back.
-  const rest = names.filter((name) => !declared.includes(name))
-  if (rest.length > 0) {
-    lines.push(':root[data-dwa-theme] body [class*="tiny-card"],')
-    lines.push(':root[data-dwa-theme] body [class*="tiny-"] {')
-    for (const name of rest) lines.push(`  ${name}: ${TV_BRIDGE_EXTRA[name]};`)
-    lines.push('}')
+  const selectors = [
+    ':root[data-dwa-theme] [id^="dsh-genui-card-"]',
+    ':root[data-dwa-theme] body [class*="tiny-card"]',
+    ':root[data-dwa-theme] body [class*="tiny-"]'
+  ].join(',\n')
+  const lines = [selectors + ' {']
+  for (const [name, value] of Object.entries({ ...TV_BRIDGE_EXTRA, ...curated })) {
+    lines.push(`  ${name}: ${value} !important;`)
   }
+  lines.push('}')
   return lines.join('\n')
 }
 
