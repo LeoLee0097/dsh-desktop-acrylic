@@ -33,7 +33,7 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 | 能力                          | 实现方式                                                                                                                        | 参数                                                             |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 180 个 token                                                    | 暗色底`#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
+| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 221 个 token                                                    | 暗色底`#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
 | 图标随主题变色                | 桌面端用`currentColor` 绘制图标且没有图标专属 token，因此图标自动跟随 `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | 无需额外配置                                                     |
 | 画布透明度                    | 背景族 token 带 alpha，**按可读性求解**（见下）                                                                                 | 暗色`0.73`；亮色 `0.30`（均为白底合成后 ≥ 4.5:1）              |
 | 材质底层                      | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊                                                                          | 强度 暗 30% / 亮 24%，`blur(28px)`                             |
@@ -41,7 +41,7 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 | 对话框（设置窗口等）          | 磨砂面板：定位元素走 `isolation` + 绝对定位 `::before`；**静态元素**（设置窗口常见）改把模糊直接加在元素上，但先排除含 `position: fixed` 后代的对话框 | 底色`rgba(…, 0.75)`（25% 透明）+ `blur(30px)`               |
 | 对话框背景遮罩                | 弹窗背后压暗页面的遮罩挂 `backdrop-filter`，透出磨砂主界面；原生 `<dialog>` 走 `::backdrop`；`prefers-reduced-transparency` 时随模糊层一并停用 | `blur(12px) saturate(1.1)`（`--dwa-mask-blur`）             |
 | 工作区主侧栏                  | 均匀颗粒纹理（纯`background-image`，无方向性、无边缘）                                                                        | 暗色 6% / 亮色 14%（明暗感知不对称，故分开设值）                 |
-| 卡片与表格（genui）           | 把卡片库自带的`--tv-*` 调色板桥接到我们的别名 token                                                                           | 22 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框                  |
+| 卡片与表格（genui）           | 把卡片库自带的`--tv-*` 调色板桥接到我们的别名 token                                                                           | 60 条桥接，覆盖表面 / 交互 / 文字 / 图标 / 边框                  |
 | 原生控件                      | `color-scheme` 随主题切换                                                                                                     | 滚动条、复选框等原生部件一并跟随                                 |
 | 字体                          | 两个可搜索下拉（界面字体 / 代码字体），列出**本机可用的等宽字体**（含 NF / PL 变体）                                      | 见下文「字体探测」                                               |
 
@@ -289,6 +289,8 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 `prefers-reduced-transparency: reduce` 时模糊层自动停用。
 
 ## 变更记录
+
+- **0.9.10** — 修 QA 卡片（genui / tiny-vue）底色不统一：卡片库把整张调色板声明在 `:root` 上，并把 `--tv-color-*` 全部映射到它自己的基础色，**我们只桥接了 22 个**。于是卡体用的 `--tv-color-bg`、嵌套面用的 `bg-secondary` / `bg-primary` / `bg-4` / `bg-header` 等全部退回库的默认值——亮色是纯白 `#fff`、暗色是中性灰（截图里 `#ffffff` 与 `#1a1a1a` / `#262626` 正是它们），与我们的蓝调表面完全不同，这就是「QA 框效果不统一」。现在桥接扩到 **60 条**（bg 面 / 交互 / 文字 / 图标 / 边框 / 状态），并补上卡片库还会要的 `--dsw-alias-state-error-tertiary`。桥接值仍指向我们自己的别名 token，所以两套皮肤自动同步；token 总数 182 → **221**。
 
 - **0.9.9** — 修设置窗口的磨砂背景：0.2.1 的设置窗口是「portal overlay（`role=presentation`）+ `.mask` 兄弟 + 面板（`role=dialog` `aria-modal` `data-shortcut-modal`）」结构。两处改动：① 对话框选择器扩充为 `[role="dialog"]` / `dialog` / `[aria-modal="true"]` / `[data-shortcut-modal]`，角色被改名也不至于失配；② 找遮罩时**优先取类名含 mask/backdrop/scrim 的兄弟**，而不是父级 overlay——把 `backdrop-filter` 加在父级会让它成为 fixed 面板的包含块，面板可能被重新定位，而且真正被模糊的是遮罩而不是对话框背后。另：面板一个都没匹配上时，诊断会把候选节点（类名/尺寸/role/aria-modal）写进 `panelDebug`，下次「磨砂没了」能直接定位。
 

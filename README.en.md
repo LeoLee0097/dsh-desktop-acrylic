@@ -36,7 +36,7 @@ row and the `masks 1` diagnostic are visible):
 
 | Feature | How it works | Values |
 | --- | --- | --- |
-| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 180 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
+| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 221 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
 | Icons follow the theme | The shell paints icons with `currentColor` and ships no icon-specific tokens, so icons follow `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | nothing to configure |
 | Canvas transparency | Background-family tokens carry alpha, **solved for readability** (see below) | dark `0.73`; light `0.30` — both reach ≥ 4.5:1 when composited over white |
 | Material base | A soft blue/purple/cyan field built from the palette, pinned to the bottom layer and pre-blurred | strength dark 30% / light 24%, `blur(28px)` |
@@ -328,6 +328,8 @@ see [docs/desktop-window-material.md](docs/desktop-window-material.md).
 With `prefers-reduced-transparency: reduce` the blur layers are disabled automatically.
 
 ## Changelog
+
+- **0.9.10** — QA cards (genui / tiny-vue) no longer use a foreign background: the card library declares its whole palette on `:root` and maps every `--tv-color-*` to its own base colours, while **we bridged only 22 of them**. The card body (`--tv-color-bg`) and the nested surfaces (`bg-secondary` / `bg-primary` / `bg-4` / `bg-header` …) therefore fell back to the library defaults — pure white in light, a neutral grey in dark (the `#ffffff` and `#1a1a1a` / `#262626` in the screenshots), which is exactly why the QA boxes did not match the theme. The bridge now covers **60** tokens (surfaces, interaction, text, icon, border, state) and adds the `--dsw-alias-state-error-tertiary` surface the cards also request. Bridge values still point at our own alias tokens, so both skins stay in sync; token count 182 → **221**.
 
 - **0.9.9** — Settings-window frost fixed: in 0.2.1 the settings window is a portal overlay (`role=presentation`) containing a `.mask` sibling and the panel (`role=dialog`, `aria-modal`, `data-shortcut-modal`). Two changes: (1) the dialog selectors now cover `[role="dialog"]` / `dialog` / `[aria-modal="true"]` / `[data-shortcut-modal]`, so a rename cannot silently drop the match; (2) mask detection **prefers a sibling whose class says mask/backdrop/scrim** over the parent overlay — a `backdrop-filter` on the parent makes it the containing block for the fixed-position panel (which can re-anchor it) and blurs the dim layer rather than the content behind the dialog. Also: when no dialog matches, the diagnostics now dump candidate nodes (class, size, role, aria-modal) into `panelDebug`, so a future miss is diagnosable instead of silent.
 
