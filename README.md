@@ -290,6 +290,8 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+- **0.9.20** — 修 `fontCount: 0`：字体扫描原先只在**设置行挂载时**才跑（写在 `useEffect` 里），所以只要没打开过设置窗口，诊断就一直显示 `builtin/0`——字体其实没问题，只是「量」从未发生。现在在插件激活时**主动扫一次**并缓存结果（`systemFontCache`），设置行直接用缓存，诊断首个快照即给出真实数字。实测宿主路由 `GET /dark-acrylic/fonts` 正常：**370 个字体、其中 37 个判为等宽**。
+
 - **0.9.19** — 清掉死代码：`SHADOW_HOST_BRIDGE_ENABLED` 与 `armShadowHosts()` 删除（探针已证明卡片是普通光 DOM 元素 `shadow=false`，该函数从未真正执行）。客户端 bundle 因此少了一段永远不会运行的分支，诊断字段 `shadowHosts` 一并移除。
 
 - **0.9.12–0.9.15** — 卡片配色排查（三次尝试 + 一次回滚 + 一支探针）：影子宿主回填（被探针证伪：卡片 `shadow=false`）、元素级类规则（输给库的 ID 选择器）、按需回滚止血、新增 `cardRules` 诊断。**结论：卡片库用 `#dsh-genui-card-N` 注入调色板，特异性 (1,0,0)，任何类规则都赢不了。**

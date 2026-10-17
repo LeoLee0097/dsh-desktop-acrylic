@@ -221,6 +221,8 @@ window.__ModuleLoader__.load({
 		/** Why each dialog was armed or skipped, for diagnostics (short list). */
 		let panelDebug = [];
 		/** Which catalog the font dropdowns use, and how many families it holds. */
+		/** Result of the one system-font scan this page performs. */
+		let systemFontCache = null;
 		let fontSource = "builtin";
 		let fontCount = 0;
 		/** Outcome of the last preference-layer write ("written" / "unchanged" / "error" / "unavailable"). */
@@ -844,6 +846,7 @@ window.__ModuleLoader__.load({
 		 * The union is used; a missing host route simply means a shorter list.
 		 */
 		async function loadSystemFonts() {
+			if (systemFontCache !== null) return systemFontCache;
 			const candidates = [];
 			for (const base of MONO_FONT_BASES) {
 				for (const suffix of MONO_FONT_SUFFIXES) candidates.push(`${base}${suffix}`);
@@ -867,17 +870,21 @@ window.__ModuleLoader__.load({
 			const merged = Array.from(
 				new Set(probed.concat(hosted).map((f) => String(f).trim()).filter(Boolean))
 			);
-			if (merged.length === 0) return null;
+			if (merged.length === 0) {
+				systemFontCache = null;
+				return null;
+			}
 			fontSource = hosted.length > 0 ? (probed.length > 0 ? "host+probe" : "host") : "probe";
 			fontCount = merged.length;
 			// Code-style faces first: CJK fonts also report fixed pitch and would
 			// otherwise crowd out the ones a developer actually wants.
 			const codeish = /code|mono|console|cascadia|jetbrains|fira|hack|inconsolata|menlo|courier|source|plex|roboto|ubuntu|dejavu|liberation|sarasa|maple|lxgw|terminus|iosevka/i;
-			return merged.sort((a, b) => {
+			systemFontCache = merged.sort((a, b) => {
 				const aCode = codeish.test(a) ? 0 : 1;
 				const bCode = codeish.test(b) ? 0 : 1;
 				return aCode === bCode ? a.localeCompare(b) : aCode - bCode;
 			});
+			return systemFontCache;
 		}
 
 		/** Whether the blur layer is wanted: durable file → localStorage → on. */
@@ -1291,7 +1298,7 @@ window.__ModuleLoader__.load({
 			const [font, setFont] = react.useState(() => (typeof snapshot.font === "string" ? snapshot.font : ""));
 			const [codeFont, setCodeFont] = react.useState(() => (typeof snapshot.codeFont === "string" ? snapshot.codeFont : ""));
 			// Start from the built-in catalog, then swap in what is really installed.
-			const [monoFonts, setMonoFonts] = react.useState(() => MONO_FONTS);
+			const [monoFonts, setMonoFonts] = react.useState(() => (Array.isArray(systemFontCache) ? systemFontCache : MONO_FONTS));
 			react.useEffect(() => {
 				let cancelled = false;
 				void loadSystemFonts().then((families) => {
@@ -1450,6 +1457,17 @@ window.__ModuleLoader__.load({
 
 		function applyInner(ctx) {
 			themeService = ctx.theme;
+			// Scan once, right away: the settings row may not be mounted for a while,
+			// and the diagnostics should report a real number from the first snapshot.
+			void loadSystemFonts().then(() => {
+				// report() is hoisted, so it is safe here even though the scheduler is
+				// wired later; a failure only costs one diagnostics push.
+				try {
+					void report();
+				} catch {
+					// diagnostics only
+				}
+			});
 			/** Set once the plugin is disposed: late async callbacks bail out. */
 			let disposed = false;
 

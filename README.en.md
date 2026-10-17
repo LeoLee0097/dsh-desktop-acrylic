@@ -329,6 +329,8 @@ With `prefers-reduced-transparency: reduce` the blur layers are disabled automat
 
 ## Changelog
 
+- **0.9.20** — `fontCount: 0` fixed: the font scan used to run only inside the settings row’s `useEffect`, so unless that window had been opened the diagnostics kept reporting `builtin/0` — the fonts were fine, the measurement simply never happened. The scan now runs once at plugin activation and is cached (`systemFontCache`); the row starts from that cache, so the first diagnostics snapshot already carries a real number. Verified against the host route `GET /dark-acrylic/fonts`: **370 families, 37 classified as monospace**.
+
 - **0.9.19** — Dead code removed: `SHADOW_HOST_BRIDGE_ENABLED` and `armShadowHosts()` are gone. The probe proved the cards are plain light-DOM elements (`shadow=false`), so the function never actually ran; the `shadowHosts` diagnostics field went with it.
 
 - **0.9.12–0.9.15** — Card colour investigation (three attempts, one rollback, one probe): the shadow-host pass (disproved by the probe: the cards report `shadow=false`), an element-level class rule (lost to the library id selector), a rollback to stop the display breakage, and a new `cardRules` diagnostic. **Conclusion: the library injects its palette behind `#dsh-genui-card-N` — specificity (1,0,0) — so no class rule can win.**
