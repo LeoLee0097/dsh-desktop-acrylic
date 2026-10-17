@@ -195,6 +195,9 @@ window.__ModuleLoader__.load({
 		let frostCount = 0;
 		/** Number of dialogs currently frosted as panels. */
 		let panelsCount = 0;
+		/** Number of shadow hosts that received the bridge tokens. */
+		let shadowHosts = 0;
+
 		/** Number of dim masks currently frosted behind dialogs. */
 		let maskCount = 0;
 		/** How often the heal had to re-assert the theme or re-mount chrome. */
@@ -658,6 +661,82 @@ window.__ModuleLoader__.load({
 				if (reportRequest !== null) reportRequest();
 			}, 250);
 		}
+
+		/**
+		 * Push our card-library bridge into every shadow root host.
+		 *
+		 * tiny-vue ships its palette as a constructable stylesheet whose selectors
+		 * start with `:host`, so a value inherited from <body> loses to it inside
+		 * the shadow tree. Inline custom properties on the host element win against
+		 * a `:host` rule and still inherit inward, so mirroring the computed body
+		 * values onto each host is enough — and it needs no access to the shadow
+		 * root itself.
+		 *
+		 * Returns the number of hosts patched.
+		 */
+		function armShadowHosts() {
+			let patched = 0;
+			try {
+				// The bridge tokens live inline on <body> (the shell applies every skin
+				// token there), so the inline declaration list is the source of truth.
+				const names = [];
+				const inline = document.body.style;
+				for (let index = 0; index < inline.length; index += 1) {
+					const name = inline.item(index);
+					if (name !== null && name.indexOf("--tv-") === 0) names.push(name);
+				}
+				if (names.length === 0) return 0;
+				const values = new Map();
+				for (const name of names) values.set(name, inline.getPropertyValue(name));
+				const nodes = document.querySelectorAll("*");
+				for (const node of Array.prototype.slice.call(nodes)) {
+					const shadow = node.shadowRoot;
+					if (!shadow) continue;
+					let changed = false;
+					for (const [name, value] of values) {
+						if (node.style.getPropertyValue(name) !== value) {
+							node.style.setProperty(name, value);
+							changed = true;
+						}
+					}
+					if (changed) patched += 1;
+				}
+			} catch {
+				// A detached tree or a locked-down shadow root: leave it alone.
+			}
+			return patched;
+		}
+
+
+		/** Snapshot of what the card surfaces actually compute to. */
+		function probeCardSurfaces() {
+			const out = [];
+			try {
+				const nodes = document.querySelectorAll(
+					".tiny-card, [class*='tiny-card'], [class*='card'][role], [data-slot*='card']"
+				);
+				for (const node of Array.prototype.slice.call(nodes, 0, 4)) {
+					const style = window.getComputedStyle(node);
+					const root = node.getRootNode();
+					const shadow = root instanceof ShadowRoot;
+					let inlineOwner = "-";
+					for (let cursor = node; cursor !== null; cursor = cursor.parentElement) {
+						if (cursor.style && cursor.style.getPropertyValue("--tv-color-bg") !== "") {
+							inlineOwner = cursor === document.body ? "body" : cursor.tagName.toLowerCase();
+							break;
+						}
+					}
+					const cls = typeof node.className === "string" ? node.className.split(/\s+/).slice(0, 2).join(".") : "?";
+					out.push(
+						`${cls} bg=${style.backgroundColor} tvbg=${style.getPropertyValue("--tv-color-bg").trim()} shadow=${shadow} owner=${inlineOwner}`
+					);
+				}
+			} catch {
+				// diagnostics only
+			}
+			return out;
+		}
+
 		function syncChrome(active) {
 			const root = document.documentElement;
 			if (active) {
@@ -672,10 +751,12 @@ window.__ModuleLoader__.load({
 					armBlurHosts();
 					frostCount = armFrostSurfaces();
 					panelsCount = armDialogPanels();
+					shadowHosts = armShadowHosts();
 					startFrostObserver();
 				} else {
 					disarmBlurHosts();
 					stopFrostObserver();
+					shadowHosts = 0;
 					mountStyle("chrome", CHROME_STYLE_ID, BASE_CSS);
 				}
 			} else {
@@ -890,6 +971,7 @@ window.__ModuleLoader__.load({
 		/** Push a status snapshot; diagnostics only, never throws. */
 		async function report() {
 			try {
+				const surfaceProbe = probeCardSurfaces();
 				await fetch(STATE_ROUTE, {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -908,7 +990,8 @@ window.__ModuleLoader__.load({
 						frost: frostCount,
 						panels: panelsCount,
 						panelDebug: panelDebug.slice(0, 4),
-						masks: maskCount,
+						shadowHosts,
+						surfaceProbe,
 						maskDebug: maskDebug.slice(0, 4),
 						heals: healsCount,
 						layer: layerStatus,
