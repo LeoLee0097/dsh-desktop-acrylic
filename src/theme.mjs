@@ -212,35 +212,40 @@ function buildStaticTokens(p) {
 function surfaceTable(p) {
   const dark = p.colorScheme === 'dark'
   const k = dark ? 1 : 3
+  // The surfaces that sit over the material field get explicit per-scheme
+  // alphas. The dark palette keeps them near the floor so the field still shows
+  // through (it was 0.10 before the readability work; 0.32–0.48 is the middle);
+  // the light palette is untouched.
+  const field = (darkAlpha, lightAlpha) => (dark ? darkAlpha : lightAlpha)
   return [
     // The canvas, base layer and sidebar carry the effect: they are the big
     // surfaces, and low alpha is what makes them read as glass.
-    ['--dsw-alias-bg-base', p.bgTransparent, 0.1 * k],
-    ['--dsw-alias-bg-layer-1', p.bgDeeper, 0.08 * k],
-    ['--dsw-alias-bg-layer-2', p.bgHighlight, 0.18 * k],
-    ['--dsw-alias-bg-layer-3', p.bgRaised, 0.24 * k],
+    ['--dsw-alias-bg-base', p.bgTransparent, field(0.34, 0.1 * k)],
+    ['--dsw-alias-bg-layer-1', p.bgDeeper, field(0.32, 0.08 * k)],
+    ['--dsw-alias-bg-layer-2', p.bgHighlight, field(0.40, 0.18 * k)],
+    ['--dsw-alias-bg-layer-3', p.bgRaised, field(0.48, 0.24 * k)],
     ['--dsw-alias-bg-overlay', p.bg, 0.6 * k, 0.6],
     // Sidebar tone. The light palette shares the canvas hue *and* alpha, so the
     // sidebar and the content area render as one continuous surface with no
     // vertical tone step (the seam across the column). The dark palette keeps
     // its slightly deeper column — that separation was confirmed as desirable.
-    ['--dsw-specific-sidebar-fill', dark ? p.bgDeeper : p.bgTransparent, 0.1 * k],
+    ['--dsw-specific-sidebar-fill', dark ? p.bgDeeper : p.bgTransparent, field(0.32, 0.1 * k)],
     ['--dsw-specific-sidebar-nav-item-hover', p.bgHighlight, 0.28 * k, 0.2],
     ['--dsw-specific-sidebar-nav-item-active', p.bgHighlight, 0.44 * k, 0.34],
-    ['--dsw-specific-input-major', p.bgTransparent, 0.26 * k, 0.2],
-    ['--dsw-specific-login-input', p.bgTransparent, 0.26 * k, 0.2],
+    ['--dsw-specific-input-major', p.bgTransparent, field(0.40, 0.26 * k), 0.2],
+    ['--dsw-specific-login-input', p.bgTransparent, field(0.40, 0.26 * k), 0.2],
     ['--dsw-specific-selector', p.bgHighlight, 0.46 * k, 0.36],
     ['--dsw-specific-bubble', p.bgHighlight, 0.34 * k, 0.26],
     ['--dsw-specific-bubble-highlight', p.bgRaised, 0.42 * k, 0.32],
     ['--dsw-alias-bg-module-platform', p.bgHighlight, 0.34 * k],
     ['--dsw-alias-bg-multi-select', p.bgHighlight, 0.34 * k],
     ['--dsw-alias-bg-skeleton', p.bgRaised, 0.08 * k, 0.05],
-    ['--dsw-alias-markdown-code-block', p.bgDeeper, 0.44 * k, 0.34],
+    ['--dsw-alias-markdown-code-block', p.bgDeeper, field(0.46, 0.44 * k), 0.34],
     ['--dsw-alias-markdown-code-block-banner', p.bgHighlight, 0.44 * k, 0.32],
     ['--dsw-alias-markdown-code-segment-selected', p.bgHighlight, 0.44 * k, 0.32],
     ['--dsw-alias-markdown-code-segment-unselected', p.bgDeeper, 0.44 * k, 0.34],
     ['--dsw-alias-markdown-citation', p.bgHighlight, 0.44 * k, 0.32],
-    ['--dsw-alias-markdown-inline-code', p.bgHighlight, 0.44 * k, 0.32],
+    ['--dsw-alias-markdown-inline-code', p.bgHighlight, field(0.46, 0.44 * k), 0.32],
     ['--dsw-alias-markdown-placeholder', p.bgHighlight, 0.44 * k, 0.32],
     ['--dsw-alias-markdown-tag', p.bgHighlight, 0.44 * k, 0.32],
     ['--dsw-alias-button-elevated-fill', p.bgHighlight, 0.4 * k, 0.3],
@@ -292,8 +297,8 @@ const MAX_SURFACE_ALPHA = 0.85
  * 4.5:1 *on its own* pushed the canvas to 0.73 and made the interface solid.
  * The numbers here are the retreat from that.
  */
-export const MIN_SURFACE_CONTRAST = 2.0
-export const MIN_SURFACE_ALPHA = 0.36
+export const MIN_SURFACE_CONTRAST = 1.6
+export const MIN_SURFACE_ALPHA = 0.32
 export const MIN_COMPOSED_CONTRAST = 7
 
 /** Tokens that dim or decorate instead of holding text. */
@@ -351,19 +356,18 @@ function buildSurfaceTokens(p) {
   const tokens = {}
   const textColour = hexToRgb(p.fg)
   for (const [token, hex, alpha, floor] of surfaceTable(p)) {
-    const minimum = typeof floor === 'number' ? floor : 0.02
-    const colour = hexToRgb(hex)
+    const tableValue = Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, typeof floor === 'number' ? floor : 0.02))
     const exempt = NON_TEXT_SURFACES.some((pattern) => pattern.test(token))
-    const tableValue = Math.min(MAX_SURFACE_ALPHA, Math.max(alpha, minimum))
-    // Keep the design value whenever it already clears the "reads as a hole"
-    // threshold — the light palette's 0.30 clears it comfortably (8.7:1), so it
-    // must not be dragged up. Only surfaces that would look like an empty hole
-    // (the dark palette's 0.08–0.10) get raised to the solved floor.
-    const clearsFloor =
-      exempt || colour === null || textColour === null
-        ? true
-        : contrastRatio(textColour, compositeOver(colour, tableValue, WHITE)) >= MIN_SURFACE_CONTRAST
-    const value = clearsFloor ? tableValue : Math.max(tableValue, surfaceFloorAlpha(colour, textColour))
+    const colour = hexToRgb(hex)
+    // The table value is the design. The floor only applies where the value
+    // would read as an empty hole over a bare white window — the light palette's
+    // 0.24 already measures 8.9:1 there and must keep its own number.
+    const isHole =
+      !exempt &&
+      colour !== null &&
+      textColour !== null &&
+      contrastRatio(textColour, compositeOver(colour, tableValue, WHITE)) < MIN_SURFACE_CONTRAST
+    const value = isHole ? Math.max(tableValue, MIN_SURFACE_ALPHA) : tableValue
     tokens[token] = rgba(hex, value)
   }
   return tokens
@@ -854,18 +858,31 @@ export function buildBaseCss() {
   ].join('\n')
 }
 
+/**
+ * Strength of the accent hues in the material field, per scheme.
+ *
+ * Raised from 30/24 when the surfaces went opaque enough to mute the field: a
+ * surface at ~0.5 alpha halves the hue variation behind it, so the field has to
+ * be about twice as strong to still read as "a background". The ceiling is
+ * readability — see the worst-case measurement in the README.
+ */
+export const MATERIAL_STRENGTH = { dark: 38, light: 30 }
+
 /** Soft multi-hue field used as the material base for one palette. */
 function materialStack(p) {
   // The light palette keeps a gentler field: a vivid wash over a bright base
   // looks loud rather than soft.
-  const strength = p.colorScheme === 'dark' ? 30 : 24
+  const strength = p.colorScheme === 'dark' ? MATERIAL_STRENGTH.dark : MATERIAL_STRENGTH.light
   const stop = (hue, weight, x, y, size) =>
     `radial-gradient(${size}% ${size}% at ${x}% ${y}%, color-mix(in srgb, ${hue} ${weight}%, transparent), transparent 70%)`
+  // The base gradient carries a hint of the accent hue so the field reads as a
+  // colour sweep rather than a flat panel even where the spots are weak.
+  const baseTint = `color-mix(in srgb, ${p.blue} 10%, ${p.bg})`
   return [
-    stop(p.blue, strength, 18, 22, 45),
-    stop(p.magenta, Math.round(strength * 0.8), 82, 18, 40),
-    stop(p.cyan, Math.round(strength * 0.65), 68, 88, 50),
-    `linear-gradient(160deg, ${p.bg}, ${p.bgTransparent} 55%, ${p.bgDeepest})`
+    stop(p.blue, strength, 18, 22, 55),
+    stop(p.magenta, Math.round(strength * 0.8), 82, 18, 50),
+    stop(p.cyan, Math.round(strength * 0.65), 68, 88, 60),
+    `linear-gradient(160deg, ${p.bg}, ${baseTint} 58%, ${p.bgDeepest})`
   ].join(',\n    ')
 }
 
