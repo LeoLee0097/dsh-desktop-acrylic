@@ -1,6 +1,6 @@
 {
   "name": "dsh-desktop-acrylic",
-  "version": "0.9.22",
+  "version": "0.9.23",
   "description": "Tokyo Night dark & light themes for DeepSeek Harness (DSH) Desktop — real theme-runtime skins with acrylic panels, material blur, and a monospace font picker.",
   "license": "MIT",
   "author": "LeoLee0097",
@@ -30,7 +30,8 @@
     "cordis.patch.yml",
     "themes",
     "src",
-    "scripts",
+    "scripts/build.mjs",
+    "scripts/check-fonts.mjs",
     "docs"
   ],
   "scripts": {

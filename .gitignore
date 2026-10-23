@@ -4,3 +4,11 @@ node_modules/
 Thumbs.db
 .idea/
 .vscode/
+
+# Outputs the maintenance scripts write into the current directory.
+static-tokens.json
+update-plan.json
+
+# Packed tarballs and profile backups.
+*.tgz
+*.bak-*

@@ -164,7 +164,9 @@ dsh-desktop-acrylic/
 │   └── client.tpl.js      # 浏览器半边模板（手写）
 ├── scripts/
 │   ├── build.mjs          # 构建 + 自检 → 产出下面两项
-│   └── check-fonts.mjs    # 本机字体扫描的调试工具
+│   ├── check-fonts.mjs    # 本机字体扫描的调试工具
+│   ├── paths.mjs          # 维护脚本共用的路径解析（profile / app.asar）
+│   └── …                  # 维护工具：asar 读取、令牌比对、插件豁免，见 scripts/README.md
 ├── lib/
 │   ├── index.js           # 宿主半边：状态路由 + 本机字体路由
 │   └── client.js          # 浏览器半边（GENERATED，勿手改）
@@ -289,6 +291,13 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 `prefers-reduced-transparency: reduce` 时模糊层自动停用。
 
 ## 变更记录
+
+- **0.9.23** — 仓库里多了一组维护工具（`scripts/`），并把它们排除在发布包之外：
+
+  - `paths.mjs` 统一解析 profile 与 `app.asar`。注意 DSH 的两个变量不是一回事：`DSH_PROFILE_DIR` 是目录，`DSH_PROFILE` 是 profile **名**（`desktop`）——把名字当路径会把 profile 解析到 `<cwd>/desktop`，这条在移植时踩过一次。
+  - 新增八个工具：`asar-tool.mjs`（无依赖读 Electron asar：`list` / `grep` / `extract`）、`check-encoding.mjs`（U+FFFD / BOM 拦网，自动发现 `src`/`scripts`/`themes`/`lib`）、`diff-tokens.mjs`、`extract-static-tokens.mjs`、`probe-dsh-packages.mjs`、`plugin-exemptions.mjs`、`check-plugin-updates.mjs`、`check-provider-support.mjs`。用途、写盘范围、联网行为见 `scripts/README.md`。
+  - `plugin-exemptions --write` 会先备份 `compatibility.json` 为 `.bak-<时间戳>`、打印新增/移除的豁免条目，再写入并回读校验——这个文件决定运行时接受哪些插件，不该静默覆盖。
+  - **发布包收窄**：`files` 从整目录 `scripts` 改为逐条列出，只有 `build.mjs` 与 `check-fonts.mjs` 随包发布（11 个脚本 → 2 个，包内文件 23 → 14 个，未解压体积 475 KB → 450 KB）。这些工具会读你的 `~/.dsh` 与应用安装目录，其中 `--write` 还会改 profile，不适合发给使用者。
 
 - **0.9.22** — 两处都在「我们从来没设过那个 token」这一层，一行一个根因：
 

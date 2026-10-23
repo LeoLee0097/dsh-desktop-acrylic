@@ -179,7 +179,9 @@ dsh-desktop-acrylic/
 │   └── client.tpl.js      # browser half template (hand-written)
 ├── scripts/
 │   ├── build.mjs          # build + self-checks → produces the two entries below
-│   └── check-fonts.mjs    # debugging tool for the local font scan
+│   ├── check-fonts.mjs    # debugging tool for the local font scan
+│   ├── paths.mjs          # path resolution shared by the maintenance scripts
+│   └── …                  # maintenance tools (asar reader, token diff, plugin exemptions); see scripts/README.md
 ├── lib/
 │   ├── index.js           # host half: state route + local font route
 │   └── client.js          # browser half (GENERATED, do not edit by hand)
@@ -328,6 +330,13 @@ see [docs/desktop-window-material.md](docs/desktop-window-material.md).
 With `prefers-reduced-transparency: reduce` the blur layers are disabled automatically.
 
 ## Changelog
+
+- **0.9.23** — The repository gains a maintenance toolkit (`scripts/`), and the published package deliberately leaves it out:
+
+  - `paths.mjs` resolves the profile and the `app.asar` once. Note that DSH's two variables are not interchangeable: `DSH_PROFILE_DIR` is a directory, `DSH_PROFILE` is a profile *name* (`desktop`) — treating the name as a path resolves the profile to `<cwd>/desktop`. That one bit during the port.
+  - Eight tools: `asar-tool.mjs` (dependency-free Electron asar reader: `list` / `grep` / `extract`), `check-encoding.mjs` (U+FFFD and BOM tripwire, discovering `src`/`scripts`/`themes`/`lib`), `diff-tokens.mjs`, `extract-static-tokens.mjs`, `probe-dsh-packages.mjs`, `plugin-exemptions.mjs`, `check-plugin-updates.mjs`, `check-provider-support.mjs`. What each writes and fetches is listed in `scripts/README.md`.
+  - `plugin-exemptions --write` now backs the previous `compatibility.json` up to `.bak-<timestamp>`, prints the exemptions it adds and removes, then writes and reads the file back — it decides which plugins the runtime accepts, so it should not be replaced silently.
+  - **Tighter package**: `files` enumerates the two build-time scripts instead of the whole `scripts` directory, so only `build.mjs` and `check-fonts.mjs` ship (11 scripts → 2; 23 → 14 files; unpacked 475 KB → 450 KB). The tools read your `~/.dsh` and the application install, and `--write` edits the profile — that is not something to hand to every user.
 
 - **0.9.22** — Two fixes that both reduce to a token we never set:
 
