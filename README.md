@@ -297,7 +297,8 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
   - `paths.mjs` 统一解析 profile 与 `app.asar`。注意 DSH 的两个变量不是一回事：`DSH_PROFILE_DIR` 是目录，`DSH_PROFILE` 是 profile **名**（`desktop`）——把名字当路径会把 profile 解析到 `<cwd>/desktop`，这条在移植时踩过一次。
   - 新增八个工具：`asar-tool.mjs`（无依赖读 Electron asar：`list` / `grep` / `extract`）、`check-encoding.mjs`（U+FFFD / BOM 拦网，自动发现 `src`/`scripts`/`themes`/`lib`）、`diff-tokens.mjs`、`extract-static-tokens.mjs`、`probe-dsh-packages.mjs`、`plugin-exemptions.mjs`、`check-plugin-updates.mjs`、`check-provider-support.mjs`。用途、写盘范围、联网行为见 `scripts/README.md`。
   - `plugin-exemptions --write` 会先备份 `compatibility.json` 为 `.bak-<时间戳>`、打印新增/移除的豁免条目，再写入并回读校验——这个文件决定运行时接受哪些插件，不该静默覆盖。
-  - **发布包收窄**：`files` 从整目录 `scripts` 改为逐条列出，只有 `build.mjs` 与 `check-fonts.mjs` 随包发布（11 个脚本 → 2 个，包内文件 23 → 14 个，未解压体积 475 KB → 450 KB）。这些工具会读你的 `~/.dsh` 与应用安装目录，其中 `--write` 还会改 profile，不适合发给使用者。
+  - **发布包收窄**：`files` 从整目录 `scripts` 改为逐条列出，只有 `build.mjs` 与 `check-fonts.mjs` 随包发布（11 个脚本 → 2 个，包内文件 23 → 14 个）。这些工具会读你的 `~/.dsh` 与应用安装目录，其中 `--write` 还会改 profile，不适合发给使用者。
+  - **路由加固**：三条宿主路由（`state` / `fonts` / `preference`）此前没有做来源校验。平台的约定是每条路由先向 `connection` 服务要一次 `requestRejection`——它的 Host / Origin 围栏挡的正是 DNS 重绑定，而通过 `webServer` 注册的路由**不会**自动继承这层。现在三条都问了；同时请求体上限 64 KB（超出即 413）、PUT 必须是 `application/json`（否则 415）、响应带 `cache-control: no-store`。桌面窗口的 `dsh-app://` 来源无法被平台比较（它只认 http(s)），按「非 Web 客户端」放行——否则会把自己的请求拒掉；Web 页面始终会被校验。`preference` 的 `/^[a-z0-9-]+$/` 白名单保留——那是挡住往 YAML 注入的根本。
 
 - **0.9.22** — 两处都在「我们从来没设过那个 token」这一层，一行一个根因：
 
