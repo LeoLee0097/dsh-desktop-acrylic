@@ -36,7 +36,7 @@ row and the `masks 1` diagnostic are visible):
 
 | Feature | How it works | Values |
 | --- | --- | --- |
-| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 410 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
+| Themes: Tokyo Night dark / light | Skin tokens (static ramp + alias ramp + component + syntax), 438 tokens each | dark base `#1a1b26`; light base near-white (`#e7e8ee` → `#eff1f6` family) |
 | Icons follow the theme | The shell paints icons with `currentColor` and ships no icon-specific tokens, so icons follow `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | nothing to configure |
 | Canvas transparency | Background-family tokens carry alpha, **solved for readability** (see below) | dark `0.73`; light `0.30` — both reach ≥ 4.5:1 when composited over white |
 | Material base | A soft blue/purple/cyan field built from the palette, pinned to the bottom layer and pre-blurred | strength dark 30% / light 24%, `blur(28px)` |
@@ -92,6 +92,7 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 
 | Plugin version | Supported DSH | Notes |
 | --- | --- | --- |
+| **0.9.24+** | **verified on 0.2.2-rc.1** | Measured against DSH 0.2.2-rc.1 (`dsh-client-*` 0.2.2-rc.1, cordis 4.1.0, schemastery 3.19.0): the peer ranges expanded to `^0.2.0-rc.1 \|\| ^0.2.1-rc.2 \|\| ^0.2.2-rc.1`. 0.2.2 added intermediate steps to the primitive ramp — the new illustrations, preview labels and `state-done` colours read them — and the skins now fill them in (see 0.9.24) |
 | **0.9.0+** | **0.2.0-rc.1 and later** | Peer dependencies aligned to `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1` and `@deepseek-ai/cordis @ ^4.0.4`; the retired `@deepseek-ai/dsh-client-runtime` is **dropped** in favour of the packages that actually provide the services used (`dsh-client-store`, `dsh-client-locale`, `dsh-client-ui-theme`, `dsh-client-ui-settings-general`) |
 | **0.9.4+** | **verified on 0.2.1-rc.2** | Measured against DSH 0.2.1-rc.2: the `dsh-client-*` packages moved to 0.2.1-rc.2, so the peer ranges became the union `^0.2.0-rc.1 \|\| ^0.2.1-rc.2` and accept both lines. `@deepseek-ai/dsh-client-store` was **removed** from the peer and inject lists: the package is bundled with the runtime (the shipped client code still `require`s it) but is absent from the shared-package manifest, so declaring it only produces a bogus "unknown package" verdict |
 | **0.9.2+** | **verified on 0.2.0-rc.2** | Measured against DSH 0.2.0-rc.2: every peer satisfied (`^0.2.0-rc.1` covers prereleases of the same 0.2.0 tuple, rc.2 included). Note that **exact-version exemptions are keyed by DSH version**, so a DSH upgrade invalidates them all and `compatibility.json` has to be regenerated for the new version |
@@ -330,6 +331,15 @@ see [docs/desktop-window-material.md](docs/desktop-window-material.md).
 With `prefers-reduced-transparency: reduce` the blur layers are disabled automatically.
 
 ## Changelog
+
+- **0.9.24** — Aligned with DSH 0.2.2-rc.1 (`dsh-client-*` 0.2.2-rc.1, cordis 4.1.0, schemastery 3.19.0). Nothing visual changed; what changed is which ramp steps the new interface reads:
+
+  - **Ramp steps filled in.** 0.2.2 adds intermediate steps to the primitive ramp (`neutral-bluish-55/60/75/90/150/250/310/550/750/875`, `neutral-150/250/550`). The new illustrations, document-preview labels and `onboarding-card-fill` derive their colours from those steps; a missing step raises nothing, it just falls back to the shell's own neutral grey. They are now interpolated from the neighbouring anchors (20 tokens per neutral family).
+  - **The violet family and the alpha steps.** `state-done-primary` now reads `violet-600` (dark) / `violet-400` (light), and the added/removed line backgrounds of a code diff read `green-500-a08` / `red-600-a08` — none of which existed here, so diffs kept the shell's built-in green. The skins now generate `violet-400/600`, `green-500-a08/a12` and `red-400-a12/600-a08` from the palette.
+  - **One alias that cannot follow a ramp.** `--dsw-alias-brand-primary-new-colorprimary-new-color` points at `deepseek-450` (ours) in the dark block, but the light block hardcodes `#4176e6`, so the daylight skin would keep the shell's blue. Both skins now take the palette's `blue`.
+  - Peer ranges gain `^0.2.2-rc.1`; both skins now carry 438 tokens.
+  - **The font preference is no longer overridden.** 0.2.2 ships a font setting of its own (`--dsh-font-family-text` / `--dsh-font-family-code`), written only once the user picks one. The plugin used to override `--dsw-font-family` with `!important`, which silently killed that setting; it now writes `var(--dsh-font-family-text, <plugin family>)` instead — the application setting wins when present, the picker's family stays the default when it is absent, and unset behaviour is unchanged. The card `--tv-font-family` still takes the plugin family, because card typography belongs to the plugin; with an application font chosen, interface text follows it while cards keep the plugin font, and the two no longer fight.
+  - **Interfaces re-checked, all unchanged**: the theme service (`getTheme` / `setTheme` / `register` / `on("theme/change")`), the `settings.general.item` slot, `apply()` still writing every skin token inline on `<body>`, `--dsw-mask-blur` still defaulting to `none` (so our fill is still what turns the frost on), and `--dsw-font-family` / `--ds-font-family-code` still being the entry points of the font chain.
 
 - **0.9.23** — The repository gains a maintenance toolkit (`scripts/`), and the published package deliberately leaves it out:
 

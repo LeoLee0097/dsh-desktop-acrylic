@@ -143,14 +143,28 @@ function neutralRamp(p) {
         '00': p.fg,
         50: p.fg,
         100: p.fgMuted,
+        // 0.2.2 adds intermediate steps to the primitive ramp and derives its
+        // illustrations, preview labels and state colours from them. A step we
+        // do not emit silently falls back to the shell's own neutral grey, so
+        // these are interpolated from the neighbouring anchors of the palette.
+        '55': mix(p.fg, 90, p.fgMuted),
+        '60': mix(p.fg, 80, p.fgMuted),
+        '75': mix(p.fg, 50, p.fgMuted),
+        '90': mix(p.fg, 20, p.fgMuted),
+        150: mix(p.fgMuted, 50, p.fgSoft),
+        250: mix(p.fgSoft, 50, p.dark5),
         200: p.fgSoft,
         300: p.dark5,
         400: p.dark3,
+        310: mix(p.dark5, 90, p.dark3),
         500: p.gutter,
+        550: mix(p.gutter, 50, '#2f334d'),
         600: '#2f334d',
         700: p.bgHighlight,
+        750: mix(p.bgHighlight, 50, '#1f2335'),
         800: '#1f2335',
         850: p.bg,
+        875: mix(p.bg, 50, p.bgTransparent),
         900: p.bgTransparent,
         950: '#12131a',
         1000: p.bgDeepest
@@ -159,14 +173,24 @@ function neutralRamp(p) {
         '00': '#ffffff',
         50: p.bgDeepest,
         100: p.bgDeeper,
+        '55': mix(p.bgDeepest, 90, p.bgDeeper),
+        '60': mix(p.bgDeepest, 80, p.bgDeeper),
+        '75': mix(p.bgDeepest, 50, p.bgDeeper),
+        '90': mix(p.bgDeepest, 20, p.bgDeeper),
         200: p.bg,
+        150: mix(p.bgDeeper, 50, p.bg),
+        250: mix(p.bg, 50, p.bgHighlight),
         300: p.bgHighlight,
         400: p.gutter,
+        310: mix(p.bgHighlight, 90, p.gutter),
         500: p.dark3,
+        550: mix(p.dark3, 50, p.dark5),
         600: p.dark5,
         700: p.comment,
+        750: mix(p.comment, 50, p.fgSoft),
         800: p.fgSoft,
         850: p.fgMuted,
+        875: mix(p.fgMuted, 50, p.fg),
         900: p.fg,
         950: mix(p.fg, 80, '#000000'),
         1000: mix(p.fg, 65, '#000000')
@@ -178,9 +202,12 @@ function accentRamps(p) {
   return {
     deepseek: { 50: mix(p.blue, 45, p.fg), 100: mix(p.blue, 30, p.fg), 200: mix(p.blue, 70, p.fg), 300: mix(p.cyan, 60, p.bg), 400: p.blue, 450: p.blue, 500: p.blue, 600: mix(p.blue0, 70, p.bg), 700: mix(p.blue0, 60, p.bg), 800: mix(p.blue, 35, p.bgTransparent), 900: mix(p.blue, 22, p.bgTransparent) },
     blue: { 50: mix(p.blue, 45, p.fg), 75: mix(p.blue, 32, p.fg), 100: mix(p.blue, 24, p.fg), 300: mix(p.blue, 62, p.bg), 400: mix(p.blue, 82, p.bg), 450: p.blue, 500: p.blue, 600: mix(p.blue0, 72, p.bg), 800: mix(p.blue0, 55, p.bgTransparent), 900: mix(p.blue, 30, p.bgTransparent), 950: mix(p.blue, 20, p.bgTransparent), '50p': mix(p.blue, 40, p.fg) },
-    green: { 100: mix(p.green, 28, p.fg), 400: mix(p.green, 72, p.bg), 500: p.green, 900: mix(p.green, 32, p.bgTransparent) },
-    red: { 50: mix(p.red, 40, p.fg), 100: mix(p.red, 26, p.fg), 400: mix(p.red, 74, p.bg), 500: p.red, 600: mix(p.red, 66, p.bgTransparent), 900: mix(p.red, 32, p.bgTransparent) },
-    amber: { 100: mix(p.yellow, 28, p.fg), 400: mix(p.yellow, 82, p.bg), 500: p.orange, 600: p.orange, 900: mix(p.orange, 38, p.bgTransparent) }
+    green: { 100: mix(p.green, 28, p.fg), 400: mix(p.green, 72, p.bg), 500: p.green, '500-a08': rgba(p.green, 0.08), '500-a12': rgba(p.green, 0.12), 900: mix(p.green, 32, p.bgTransparent) },
+    red: { 50: mix(p.red, 40, p.fg), 100: mix(p.red, 26, p.fg), 400: mix(p.red, 74, p.bg), '400-a12': rgba(p.red, 0.12), 500: p.red, 600: mix(p.red, 66, p.bgTransparent), '600-a08': rgba(p.red, 0.08), 900: mix(p.red, 32, p.bgTransparent) },
+    amber: { 100: mix(p.yellow, 28, p.fg), 400: mix(p.yellow, 82, p.bg), 500: p.orange, 600: p.orange, 900: mix(p.orange, 38, p.bgTransparent) },
+    // 0.2.2 routes "done" state colours (state-done-primary) through a violet
+    // family that did not exist in our ramps.
+    violet: { 400: p.magenta, 600: p.purple }
   }
 }
 
@@ -703,6 +730,10 @@ function buildFixedTokens(p) {
     '--dsw-alias-label-caption': p.dark5,
     '--dsw-alias-label-dimmed': p.comment,
     '--dsw-alias-brand-primary': p.blue,
+    // 0.2.2 introduces this alias for the newer brand surfaces: the dark block
+    // derives it from `--dsw-static-deepseek-450` (ours), but the light block
+    // hardcodes #4176e6, so the daylight skin would keep the shell's blue.
+    '--dsw-alias-brand-primary-new-colorprimary-new-color': p.blue,
     '--dsw-alias-brand-text': dark ? p.bg : '#ffffff',
     '--dsw-alias-button-primary-fill': p.blue,
     '--dsw-alias-button-primary-hover': dark ? p.cyan : mix(p.blue, 85, '#ffffff'),
@@ -1306,8 +1337,13 @@ export function buildFontCss(family, codeFamily) {
   const uiFallback = '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
   const codeFallback = '"SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace'
   const stack = `${clean}, ${uiFallback}`
-  const lines = [`  --dsw-font-family: ${clean}, ${uiFallback} !important;`]
-  if (code.length > 0) lines.push(`  --ds-font-family-code: ${code}, ${codeFallback} !important;`)
+  // 0.2.2 gave the shell its own font preference (`--dsh-font-family-text` /
+  // `-code`), set only once the user picks one. Chaining it ahead of the skin
+  // stack keeps the application setting alive under the theme instead of
+  // overriding it with `!important`; while it is absent the fallback keeps the
+  // picker's choice, so behaviour is unchanged.
+  const lines = [`  --dsw-font-family: var(--dsh-font-family-text, ${clean}), ${uiFallback} !important;`]
+  if (code.length > 0) lines.push(`  --ds-font-family-code: var(--dsh-font-family-code, ${code}), ${codeFallback} !important;`)
   // Cards are drawn by the genui plugin's own component library, and it never
   // reads the shell's font variable: every element carrying a `tiny-` class takes
   // `font-family: var(--tv-font-family)`, and that variable is declared in the

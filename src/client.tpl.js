@@ -185,8 +185,13 @@ window.__ModuleLoader__.load({
 			const uiFallback = '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 			const codeFallback = '"SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", monospace';
 			const stack = `${clean}, ${uiFallback}`;
-			const lines = [`  --dsw-font-family: ${clean}, ${uiFallback} !important;`];
-			if (code.length > 0) lines.push(`  --ds-font-family-code: ${code}, ${codeFallback} !important;`);
+			// 0.2.2 gave the shell its own font preference (`--dsh-font-family-text` /
+			// `-code`), set only once the user picks one. Chaining it ahead of the skin
+			// stack keeps the application setting alive under the theme instead of
+			// overriding it with `!important`; while it is absent the fallback keeps the
+			// picker's choice, so behaviour is unchanged.
+			const lines = [`  --dsw-font-family: var(--dsh-font-family-text, ${clean}), ${uiFallback} !important;`];
+			if (code.length > 0) lines.push(`  --ds-font-family-code: var(--dsh-font-family-code, ${code}), ${codeFallback} !important;`);
 			// The card library does not read the shell's font variable. Every element
 			// with a `tiny-` class takes `font-family: var(--tv-font-family)`, and that
 			// variable is declared on the card root in the same id-scoped block as the

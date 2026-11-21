@@ -33,7 +33,7 @@ Tokyo Night themes for [DeepSeek Harness](https://github.com/deepseek-ai/deepsee
 
 | 能力                          | 实现方式                                                                                                                        | 参数                                                             |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 410 个 token                                                    | 暗色底`#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
+| 主题：Tokyo Night 暗色 / 亮色 | 皮肤 token（静态色阶 + 别名色阶 + 组件专属 + 语法高亮），两套各 438 个 token                                                    | 暗色底`#1a1b26`；亮色底偏白（`#e7e8ee` → `#eff1f6` 一族） |
 | 图标随主题变色                | 桌面端用`currentColor` 绘制图标且没有图标专属 token，因此图标自动跟随 `--dsw-alias-label-*` / `--dsw-alias-brand-primary` | 无需额外配置                                                     |
 | 画布透明度                    | 背景族 token 带 alpha，**按可读性求解**（见下）                                                                                 | 暗色`0.73`；亮色 `0.30`（均为白底合成后 ≥ 4.5:1）              |
 | 材质底层                      | 用主题自身的蓝/紫/青做的柔和色场，固定在最底层并预模糊                                                                          | 强度 暗 30% / 亮 24%，`blur(28px)`                             |
@@ -88,6 +88,7 @@ dsh plugin --profile desktop add -w /absolute/path/to/dsh-desktop-acrylic
 
 | 插件版本 | 支持的 DSH | 说明 |
 | --- | --- | --- |
+| **0.9.24+** | **0.2.2-rc.1 已验证** | 实测 DSH 0.2.2-rc.1（`dsh-client-*` 0.2.2-rc.1、cordis 4.1.0、schemastery 3.19.0）：peer 范围扩为 `^0.2.0-rc.1 \|\| ^0.2.1-rc.2 \|\| ^0.2.2-rc.1`。0.2.2 在原色阶里加了一批中间步，新界面的插画 / 预览标签 / `state-done` 都从这些步取色，皮肤已同步补齐（见 0.9.24） |
 | **0.9.0+** | **0.2.0-rc.1 及更高** | peer 依赖对齐 `@deepseek-ai/dsh-client-* @ ^0.2.0-rc.1`、`@deepseek-ai/cordis @ ^4.0.4`；**移除**已下线的 `@deepseek-ai/dsh-client-runtime`，改为声明实际提供服务的包（`dsh-client-store` / `dsh-client-locale` / `dsh-client-ui-theme` / `dsh-client-ui-settings-general`） |
 | **0.9.4+** | **0.2.1-rc.2 已验证** | 实测 DSH 0.2.1-rc.2：`dsh-client-*` 升到 0.2.1-rc.2，故 peer 范围改为并集 `^0.2.0-rc.1 \|\| ^0.2.1-rc.2`，两条线都接受。另**移除** `@deepseek-ai/dsh-client-store` 的 peer 与 inject 声明：该包随运行时打包（客户端代码仍 `require` 它），但**不在共享包清单里**，声明 peer 只会得到「未知包」的误判 |
 | **0.9.2+** | **0.2.0-rc.2 已验证** | 在 DSH 0.2.0-rc.2 上实测：全部 peer 满足（`^0.2.0-rc.1` 覆盖同 0.2.0 三元组的预发布版本，如 rc.2）。注意**精确版本豁免是按 DSH 版本记账的**：升级 DSH 后老的 exemption 全部失效，需要按新版本重新生成 `compatibility.json` |
@@ -291,6 +292,15 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 `prefers-reduced-transparency: reduce` 时模糊层自动停用。
 
 ## 变更记录
+
+- **0.9.24** — 对齐 DSH 0.2.2-rc.1（`dsh-client-*` 0.2.2-rc.1、cordis 4.1.0、schemastery 3.19.0）。这一版没有改视觉，补的是「新界面会从哪些色阶取色」：
+
+  - **色阶补步**：0.2.2 在原色阶里加了一串中间步（`neutral-bluish-55/60/75/90/150/250/310/550/750/875`、`neutral-150/250/550`）。新界面的插画底 / 插画面 / 插画细节、文档预览标签、`onboarding-card-fill` 等别名都从这些步取色；缺一步不会报错，只会静默回落到 shell 自己的中性灰。现在按相邻锚点插值补齐（中性两族各 20 个 token）。
+  - **violet 族与 alpha 步**：`state-done-primary` 现在走 `violet-600`（暗色）/ `violet-400`（亮色），代码增删行底色走 `green-500-a08` / `red-600-a08`——这些以前都没有，于是 diff 用的是 shell 自带的绿。现在按调色板生成 `violet-400/600`、`green-500-a08/a12`、`red-400-a12/600-a08`。
+  - **一个跟不动色阶的别名**：`--dsw-alias-brand-primary-new-colorprimary-new-color` 在暗色块里指向 `deepseek-450`（我们的），亮色块却把值硬编码成 `#4176e6`，于是亮色皮肤会保留 shell 的蓝。改成两份皮肤都取调色板的 `blue`。
+  - peer 范围加 `^0.2.2-rc.1`；两套皮肤各 438 个 token。
+  - **字体偏好不再被抢**：0.2.2 给应用自带了一套字体设置（`--dsh-font-family-text` / `--dsh-font-family-code`），只有用户在应用里选过才会写入。插件原来用 `!important` 覆盖 `--dsw-font-family`，会让那个设置静默失效；现在写成 `var(--dsh-font-family-text, <插件字体>)` 的回退链：应用里设了以应用为准，没设则仍是插件选择器的字体，未设置时行为完全不变。卡片的 `--tv-font-family` 仍取插件字体（卡片排版由插件决定）；若改用应用内置字体，界面文字跟随、卡片保持插件字体，两者不再互斥。
+  - **复核过、都没有变的接口**：主题服务 `getTheme` / `setTheme` / `register` / `on("theme/change")`、`settings.general.item` 插槽、`apply()` 仍把皮肤 token 全量写到 `<body>` 的内联样式上、`--dsw-mask-blur` 仍默认 `none`（我们的填充仍必要）、`--dsw-font-family` / `--ds-font-family-code` 仍是字体链的入口。
 
 - **0.9.23** — 仓库里多了一组维护工具（`scripts/`），并把它们排除在发布包之外：
 
