@@ -1232,6 +1232,22 @@ export function buildTinyBridgeCss() {
     '--tv-color-bg-4': 'transparent',
     '--tv-color-bg-gray-1': 'transparent',
     '--tv-color-bg-gray-2': 'transparent',
+    // genui 0.3.4 added a second design layer (`--tr-*`, 411 definitions) whose
+    // defaults are light-only until something sets `data-tr-color-mode`. The card
+    // shell paints itself from `--content-bg`, which chains down to
+    // `--tr-container-bg-default` and finally to a literal `#fff`, so without
+    // these the card gets an opaque plate again — the v1 tokens above no longer
+    // reach the painted element.
+    '--content-bg': 'transparent',
+    '--tr-bubble-content-bg': 'transparent',
+    '--tr-container-bg-default': 'transparent',
+    '--content-box-shadow': 'none',
+    '--text-color': 'var(--dsw-alias-label-primary)',
+    '--tr-text-primary': 'var(--dsw-alias-label-primary)',
+    '--tr-text-secondary': 'var(--dsw-alias-label-secondary)',
+    '--tr-text-tertiary': 'var(--dsw-alias-label-tertiary)',
+    '--tr-color-primary': 'var(--dsw-alias-brand-primary)',
+    '--tr-container-bg-hover': 'var(--dsw-alias-interactive-bg-hover)',
     '--tv-color-text': 'var(--dsw-alias-label-primary)',
     '--tv-color-text-secondary': 'var(--dsw-alias-label-secondary)',
     '--tv-color-text-placeholder': 'var(--dsw-alias-label-tertiary)',

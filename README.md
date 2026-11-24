@@ -293,6 +293,21 @@ curl http://127.0.0.1:<端口>/dark-acrylic/preference   # 回读各 profile 补
 
 ## 变更记录
 
+- **0.9.26** — 修 0.2.2-rc.5 收口主题偏好带来的回归：重启后整套界面退回亮色、插件等于没装。宿主半边改了代码，需要重启应用：
+
+  - **根因**：0.2.2 把 `ui-theme.preference` 收成闭合枚举 `light | dark | system`，并搬进宿主用户设置文档（`theme-settings.ts` 的 `THEME_PREFERENCES` + `z.union([...THEME_PREFERENCES])`）。补丁层里那条 `preference: tokyo-night-day` 启动时校验失败被丢弃，于是应用以默认亮色启动——诊断快照里的 `chosen: "light"`、`chrome: false`、`hosts: 0`、`frost: 0` 就是这个状态，卡片字体也退回 genui 自带的 Helvetica 栈。
+  - **不再和枚举抢同一个键**：把 shell 的 `light | dark | system` 映射到两套皮肤（亮 / 暗一一对应，`system` 跟系统偏好），补丁层只把皮肤记在插件自己的条目下（`- id: dark-acrylic` / `config: skin: …`）——那条键上没有 schema 校验，组合树仍会照原样重放。用户在应用外观里显式选了原生主题时插件让位：自己存 `system` 作为让位标记，不再争抢。
+  - **顺手清掉旧值**：写补丁层时删掉旧版本留下的、落在枚举之外的 `ui-theme.preference`，避免每次启动都校验失败；原生选择（`light/dark/system`）原样保留。
+  - **恢复网重写**：`applyChosen()` 与 `heal()` 都改成「先算目标皮肤、再断言」，删掉原来那套补丁层回读确认（在枚举收口之后它只会误判成「用户自己选的」而永久让位）。
+  - 补丁层写入的三条路径（追加、改写、幂等）有独立测试：`check-layer-0926.mjs` 针对真实 `cordis.patch.yml` 跑 8 条断言。
+
+- **0.9.25** — 对齐 DSH 0.2.2-rc.5（genui 0.3.4、cordis 4.1.0）。这一版修两处回归；宿主半边改了代码，需要重启应用：
+
+  - **宿主路由全部 400**：cordis 4.1 的 Context 代理对没有写进 `inject` 的服务直接抛错（`cannot get property "connection" without inject`），而本插件只声明了 `webServer`。于是每个请求都在来源守卫里抛异常，被 webserver 统一兜成 400 —— 诊断上报从 10 月起就断了，设置页的字体清单也拿不到宿主扫描结果。改用免 inject 的 `ctx.get('connection', false)`（cordis 自己的回落路径），并给拒绝状态加数字校验。
+  - **卡片又长出底板**：genui 0.3.4 在 `--tv-*` 之上加了一层 `--tr-*`（411 个定义，默认亮色，靠 `data-tr-color-mode` 切换），卡片壳改成用 `--content-bg` 上色，它链到 `--tr-container-bg-default` 再兜底到字面量 `#fff` —— 上一版的 `--tv-color-bg: transparent` 够不到这个元素了。现在在卡片根上同时把 `--content-bg`、`--tr-bubble-content-bg`、`--tr-container-bg-default` 置为透明，`--text-color` 与 `--tr-text-primary/secondary/tertiary` 跟随文字色，`--content-box-shadow` 清零。
+  - **诊断加宽**：`surfaceProbe` 现在同时读 `--content-bg`、`--tr-container-bg-default`、`--tr-text-primary` 和卡片内 `.tr-bubble` 的实际背景；`cardRules` 两层 token 都报。
+  - **兜底不再靠猜 token 名**：genui 每加一层 token，名单就会漏一次。现在在 DOM 变动后（250ms 去抖）回读卡片根与 `.tiny-card` 的计算背景，凡是仍然不透明的就地内联清成透明并把阴影归零——内联样式压过任何普通样式表，所以下一版 genui 再换名字也不会把底板带回来。命中次数计入诊断的 `plates`。
+
 - **0.9.24** — 对齐 DSH 0.2.2-rc.1（`dsh-client-*` 0.2.2-rc.1、cordis 4.1.0、schemastery 3.19.0）。这一版没有改视觉，补的是「新界面会从哪些色阶取色」：
 
   - **色阶补步**：0.2.2 在原色阶里加了一串中间步（`neutral-bluish-55/60/75/90/150/250/310/550/750/875`、`neutral-150/250/550`）。新界面的插画底 / 插画面 / 插画细节、文档预览标签、`onboarding-card-fill` 等别名都从这些步取色；缺一步不会报错，只会静默回落到 shell 自己的中性灰。现在按相邻锚点插值补齐（中性两族各 20 个 token）。

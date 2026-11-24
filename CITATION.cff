@@ -11,8 +11,8 @@ abstract: >-
 type: software
 authors:
   - name: LeoLee0097
-version: 0.9.24
-date-released: "2026-11-10"
+version: 0.9.26
+date-released: "2026-11-22"
 license: MIT
 repository-code: "https://github.com/LeoLee0097/dsh-desktop-acrylic"
 url: "https://github.com/LeoLee0097/dsh-desktop-acrylic"

@@ -119,6 +119,90 @@ window.__ModuleLoader__.load({
 			return SKINS.some((skin) => skin.id === preference);
 		}
 
+		/** The OS colour scheme, used to resolve the shell's `system` preference. */
+		const OS_DARK_QUERY = "(prefers-color-scheme: dark)";
+
+		function osPrefersDark() {
+			try {
+				return window.matchMedia(OS_DARK_QUERY).matches === true;
+			} catch {
+				return false;
+			}
+		}
+
+		/** Our skin for a colour scheme, or "" when we ship none. */
+		function skinForScheme(scheme) {
+			for (const skin of SKINS) {
+				if (skin.colorScheme === scheme) return skin.id;
+			}
+			return "";
+		}
+
+		/**
+		 * Map a shell preference onto one of our skins.
+		 *
+		 * 0.2.2 closed the preference to `light | dark | system` and persists it
+		 * in the user settings document, so a registered third-party id is
+		 * honoured live but never written back. The shell's own appearance
+		 * control is therefore the durable store: whatever it resolves to decides
+		 * which of our two palettes is on screen.
+		 */
+		function skinForPreference(value) {
+			for (const skin of SKINS) {
+				if (skin.id === value) return value;
+			}
+			if (value === "dark") return skinForScheme("dark");
+			if (value === "light") return skinForScheme("light");
+			if (value === "system") return skinForScheme(osPrefersDark() ? "dark" : "light");
+			return "";
+		}
+
+		/** The shell settings namespace that owns the appearance preference. */
+		const THEME_SETTINGS_NS = "ui-theme";
+
+		/**
+		 * Write the shell's own preference through its durable channel.
+		 *
+		 * 0.2.2 keeps `preference` in the user settings document and exposes it
+		 * through `configForms`; `theme.setTheme('system')` cannot do it because
+		 * `system` is not a registered theme id (registering it is refused). The
+		 * older call stays as the fallback for a host without `configForms`.
+		 */
+		function setNativePreference(value) {
+			try {
+				const forms = typeof ctx.get === "function" ? ctx.get("configForms", false) : undefined;
+				const form = forms !== null && typeof forms === "object" && typeof forms.get === "function" ? forms.get(THEME_SETTINGS_NS) : null;
+				if (form !== null && typeof form === "object" && typeof form.set === "function") {
+					form.set("preference", value);
+					return true;
+				}
+			} catch {
+				// configForms unavailable — fall through
+			}
+			try {
+				ctx.theme.setTheme(value);
+				return true;
+			} catch {
+				return false;
+			}
+		}
+
+		/**
+		 * The skin that should be active, or "" when the plugin must stand down.
+		 *
+		 * `system` in our own store is the user's explicit 默认 pick from our
+		 * row; every other value is derived from the shell, because its
+		 * preference is the only one that survives a restart.
+		 */
+		function desiredSkin() {
+			if (readChosen() === NATIVE_SKIN) return "";
+			const mapped = skinForPreference(preferenceOf());
+			if (mapped !== "") return mapped;
+			const stored = readChosen();
+			return SKINS.some((skin) => skin.id === stored) ? stored : DEFAULT_SKIN;
+		}
+
+
 		/** What the browser actually resolved — proof the tokens took effect. */
 		function readComputedSurfaces() {
 			try {
@@ -676,11 +760,60 @@ window.__ModuleLoader__.load({
 				armBlurHosts();
 				frostCount = armFrostSurfaces();
 				panelsCount = armDialogPanels();
+				healCardPlates();
 				if (reportRequest !== null) reportRequest();
 			}, 250);
 		}
 
 		/** Snapshot of what the card surfaces actually compute to. */
+		/**
+		 * The card token bridge is a list of names, and genui keeps adding
+		 * layers of them (0.3.4 introduced `--tr-*` and moved the card plate to
+		 * `--content-bg`). Rather than chase every rename forever, the bridge CSS
+		 * carries the known names and this pass catches whatever is still opaque:
+		 * it looks at what a card root and its `.tiny-card` actually compute to,
+		 * and clears an opaque plate inline. Inline beats any stylesheet, so the
+		 * cards stay background-less even if a future genui sets its own plate
+		 * again without `!important`. Nodes are cheap to re-check at this cadence
+		 * (at most a couple of dozen), and the count is reported so a regression
+		 * is visible instead of silent.
+		 */
+		let plateHealsCount = 0;
+
+		function colorAlpha(value) {
+			if (typeof value !== "string" || value === "") return 0;
+			const text = value.trim().toLowerCase();
+			if (text === "transparent") return 0;
+			const match = /^rgba?\(([^)]+)\)$/.exec(text);
+			if (match === null) return 1; // a named or hex colour: treat as opaque
+			const parts = match[1].split(",").map((part) => Number.parseFloat(part.trim()));
+			if (parts.length < 3 || parts.some((part) => !Number.isFinite(part))) return 0;
+			return parts.length >= 4 && Number.isFinite(parts[3]) ? parts[3] : 1;
+		}
+
+		function healCardPlates() {
+			if (!isOursActive()) return 0;
+			let healed = 0;
+			try {
+				const nodes = document.querySelectorAll('[id^="dsh-genui-card-"]');
+				for (const node of Array.prototype.slice.call(nodes, 0, 16)) {
+					for (const target of [node, ...Array.prototype.slice.call(node.querySelectorAll(".tiny-card"), 0, 8)]) {
+						const style = window.getComputedStyle(target);
+						const plate = colorAlpha(style.backgroundColor) > 0.02;
+						const shaded = style.boxShadow !== "" && style.boxShadow !== "none";
+						if (!plate && !shaded) continue;
+						if (plate) target.style.setProperty("background-color", "transparent", "important");
+						if (shaded) target.style.setProperty("box-shadow", "none", "important");
+						healed += 1;
+					}
+				}
+			} catch {
+				// a probe must never take the interface down with it
+			}
+			plateHealsCount += healed;
+			return healed;
+		}
+
 		/**
 		 * Diagnostics are cheap but not free: probeCardRules walks every rule of
 		 * every stylesheet, and report() runs on every mutation-triggered rearm. The
@@ -709,8 +842,19 @@ window.__ModuleLoader__.load({
 						}
 					}
 					const cls = typeof node.className === "string" ? node.className.split(/\s+/).slice(0, 2).join(".") : "?";
+					// genui 0.3.4 paints the card from `--content-bg`, which chains to
+					// the new `--tr-*` layer rather than the `--tv-*` one, so both are
+					// reported. `bubble` is the element that actually shows the plate.
+					const chain = ["--content-bg", "--tr-container-bg-default", "--tr-text-primary"]
+						.map((name) => {
+							const value = style.getPropertyValue(name).trim();
+							return `${name.slice(2)}=${value === "" ? "-" : value}`;
+						})
+						.join(" ");
+					const bubble = node.querySelector(".tr-bubble");
+					const bubbleBg = bubble === null ? "-" : window.getComputedStyle(bubble).backgroundColor;
 					out.push(
-						`${cls} bg=${style.backgroundColor} tvbg=${style.getPropertyValue("--tv-color-bg").trim()} shadow=${shadow} owner=${inlineOwner}`
+						`${cls} bg=${style.backgroundColor} tvbg=${style.getPropertyValue("--tv-color-bg").trim()} ${chain} bubble=${bubbleBg} shadow=${shadow} owner=${inlineOwner}`
 					);
 				}
 			} catch {
@@ -736,7 +880,9 @@ window.__ModuleLoader__.load({
 			try {
 				const card = document.querySelector(".tiny-card, [class*='tiny-card']");
 				if (card === null) return ["no-card"];
-				const property = "--tv-color-bg";
+				// Both layers are reported: the v1 `--tv-*` palette is still there,
+				// but 0.3.4's card shell paints from `--content-bg`.
+				const properties = ["--tv-color-bg", "--content-bg"];
 				const sheets = [];
 				for (const sheet of Array.prototype.slice.call(document.styleSheets)) sheets.push(sheet);
 				const adopted = document.adoptedStyleSheets;
@@ -752,17 +898,19 @@ window.__ModuleLoader__.load({
 					for (const rule of Array.prototype.slice.call(rules)) {
 						const selector = rule.selectorText;
 						if (selector === undefined || rule.style === undefined) continue;
-						if (rule.style.getPropertyValue(property) === "") continue;
-						let matches = false;
-						try {
-							matches = card.matches(selector);
-						} catch {
-							matches = false;
+						for (const property of properties) {
+							if (rule.style.getPropertyValue(property) === "") continue;
+							let matches = false;
+							try {
+								matches = card.matches(selector);
+							} catch {
+								matches = false;
+							}
+							out.push(
+								`${matches ? "MATCH" : "outer"} ${selector.slice(0, 90)} ${property}=${rule.style.getPropertyValue(property).trim()}`
+							);
+							if (out.length >= 8) return out;
 						}
-						out.push(
-							`${matches ? "MATCH" : "outer"} ${selector.slice(0, 90)} = ${rule.style.getPropertyValue(property).trim()}`
-						);
-						if (out.length >= 6) return out;
 					}
 				}
 				if (out.length === 0) out.push("no-rule-found");
@@ -788,6 +936,7 @@ window.__ModuleLoader__.load({
 					frostCount = armFrostSurfaces();
 					panelsCount = armDialogPanels();
 						startFrostObserver();
+					healCardPlates();
 				} else {
 					disarmBlurHosts();
 					stopFrostObserver();
@@ -976,14 +1125,30 @@ window.__ModuleLoader__.load({
 			} catch {
 				// route absent — browser flags remain authoritative
 			}
+			// The patch layer is the last place a skin can survive a lost state
+			// file, so read it back: a wiped profile still boots into the skin
+			// instead of the shell's built-in palette.
+			try {
+				const response = await fetch(PREFERENCE_ROUTE);
+				if (!response.ok) return;
+				const payload = await response.json();
+				const values = payload !== null && typeof payload === "object" && Array.isArray(payload.values) ? payload.values : [];
+				const recorded = values.find((value) => typeof value === "string" && SKINS.some((skin) => skin.id === value));
+				if (typeof recorded === "string" && (typeof durable.chosen !== "string" || durable.chosen.length === 0)) {
+					durable.chosen = recorded;
+				}
+			} catch {
+				// layer unreadable — the stored flags still stand
+			}
 		}
 
 		/**
-		 * Persist the theme preference into the profile patch layer — the same
-		 * key the shell's own theme picker writes (see the host half). The
-		 * composed tree replays this layer on every re-initialization, so the
-		 * choice survives the resets that used to kill it; any later native
-		 * choice rewrites the same key and wins, so user freedom is intact.
+		 * Persist the skin into the profile patch layer, under our own loader
+		 * entry (see the host half). The shell's `ui-theme.preference` is a
+		 * closed enum since 0.2.2 and silently drops a third-party id, so the
+		 * skin cannot live there; our entry has no schema and the composed tree
+		 * replays it on every re-initialization. A later native choice is not
+		 * overwritten — it stands this record down through `desiredSkin()`.
 		 * Fire-and-forget: the outcome lands in `layerStatus` for diagnostics.
 		 */
 		function writeLayerPreference(value) {
@@ -1059,6 +1224,7 @@ window.__ModuleLoader__.load({
 						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
 						heals: healsCount,
+						plateHeals: plateHealsCount,
 						layer: layerStatus,
 						fontSource: fontSource,
 						fontCount: fontCount,
@@ -1371,7 +1537,7 @@ window.__ModuleLoader__.load({
 					},
 					label
 				);
-			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · masks ${typeof snapshot.masks === "number" ? snapshot.masks : 0} · heals ${typeof snapshot.heals === "number" ? snapshot.heals : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
+			const detail = `${t("row.diagnostics")}: ${snapshot.preference || "—"} · bg-base ${snapshot.bgBase || "—"} · chrome ${snapshot.chrome ? "on" : "off"} · hosts ${typeof snapshot.hosts === "number" ? snapshot.hosts : 0}/${typeof snapshot.hostTotal === "number" ? snapshot.hostTotal : 0} · frost ${typeof snapshot.frost === "number" ? snapshot.frost : 0} · panels ${typeof snapshot.panels === "number" ? snapshot.panels : 0} · masks ${typeof snapshot.masks === "number" ? snapshot.masks : 0} · heals ${typeof snapshot.heals === "number" ? snapshot.heals : 0} · plates ${typeof snapshot.plateHeals === "number" ? snapshot.plateHeals : 0} · fonts ${snapshot.fontSource || "-"}/${typeof snapshot.fontCount === "number" ? snapshot.fontCount : 0}`;
 			return react.createElement(
 				"div",
 				{ style: rowStyles.group },
@@ -1451,7 +1617,7 @@ window.__ModuleLoader__.load({
 		/** Row mirror store; the theme/change listener is the only writer. */
 		function createRowStore() {
 			return _store.defineStore({
-				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, masks: 0, heals: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
+				init: () => ({ chosen: "", preference: "", font: "", codeFont: "", acrylic: true, chrome: false, hosts: 0, hostTotal: 0, frost: 0, panels: 0, masks: 0, heals: 0, plateHeals: 0, fontSource: "", fontCount: 0, bgBase: "", revision: -1 }),
 				actions: {
 					sync: (d, payload) => {
 						if (typeof payload.revision !== "number" || payload.revision <= d.revision) return;
@@ -1470,6 +1636,7 @@ window.__ModuleLoader__.load({
 						d.panels = typeof payload.panels === "number" ? payload.panels : 0;
 						d.masks = typeof payload.masks === "number" ? payload.masks : 0;
 						d.heals = typeof payload.heals === "number" ? payload.heals : 0;
+						d.plateHeals = typeof payload.plateHeals === "number" ? payload.plateHeals : 0;
 						d.fontSource = typeof payload.fontSource === "string" ? payload.fontSource : "";
 						d.fontCount = typeof payload.fontCount === "number" ? payload.fontCount : 0;
 						d.bgBase = typeof payload.bgBase === "string" ? payload.bgBase : "";
@@ -1559,6 +1726,7 @@ window.__ModuleLoader__.load({
 						masks: maskCount,
 						maskDebug: maskDebug.slice(0, 4),
 						heals: healsCount,
+						plateHeals: plateHealsCount,
 						fontSource: fontSource,
 						fontCount: fontCount,
 						frostTargets: frostTargets.slice(0, 6),
@@ -1589,94 +1757,28 @@ window.__ModuleLoader__.load({
 				syncFont(readFont("font"), readFont("code"), isOursActive());
 			};
 
-			/**
-			 * A `theme/change` carrying exactly `system` while a skin is stored
-			 * is ambiguous: it is the shell's reset signature — the shell
-			 * re-applies its session-composed preference on every rebuild after
-			 * our plugin has run — but it is also what a genuine native pick of
-			 * 默认 looks like. The two are told apart by the patch layer: the
-			 * shell persists a real pick there (its own fontSize lands in the
-			 * same block) while a reset never writes the file (verified).
-			 *
-			 * The flash must be answered *now*, not after a grace period:
-			 * rebuilds fire this event on every settings change, and the user
-			 * otherwise watches the default theme for 1.5s each time. So we
-			 * re-assert immediately, and the verification passes below still
-			 * run: if the layer says the pick was genuine, we yield — mirror
-			 * `system` and re-apply it — and each pass re-heals otherwise.
-			 */
-			const resetTimers = [];
-			const verifyResetThenAct = (stored) => {
-				heal();
-				for (const delay of RESET_RECHECK_DELAYS) {
-					const timer = setTimeout(() => {
-						if (disposed) return;
-						void fetch(PREFERENCE_ROUTE)
-							.then((response) => (response.ok ? response.json() : null))
-							.then((payload) => {
-								if (disposed) return;
-								const values =
-									payload !== null && typeof payload === "object" && Array.isArray(payload.values)
-										? payload.values
-										: null;
-								const genuine =
-									values !== null &&
-									values.length > 0 &&
-									!values.includes(stored) &&
-									values.every((value) => value === NATIVE_SKIN);
-								if (genuine) {
-									// The shell persisted the pick: the user really
-									// chose 默认 — mirror it, re-apply it, stand down.
-									persist({ chosen: NATIVE_SKIN });
-									try {
-										ctx.theme.setTheme(NATIVE_SKIN);
-									} catch {
-										// runtime gone — the mirror already stands
-									}
-									return;
-								}
-								heal();
-							})
-							.catch(() => {
-								if (!disposed) heal();
-							});
-					}, delay);
-					resetTimers.push(timer);
-				}
-			};
 
 			ctx.on("theme/change", (snapshot) => {
 				sync();
 				revision += 1;
 				syncRow(typeof snapshot === "object" && snapshot !== null && typeof snapshot.revision === "number" ? snapshot.revision : revision);
-				// Mirror the effective preference into our stored choice: if the
-				// user picks another theme through the shell's own UI, we must not
-				// override it on the next boot — and when they pick ours (through
-				// either UI), the stored value matches again automatically.
-				//
-				// One value is ambiguous, though: a preference of exactly
-				// `system` is both the shell's *reset signature* (rebuilds replay
-				// the profile default) and a genuine native pick of 默认.
-				// Mirroring it blindly would poison the stored state; ignoring it
-				// would let the reset win — so it is verified against the patch
-				// layer instead (see verifyResetThenAct).
-				const effective =
-					snapshot !== null && typeof snapshot === "object" && typeof snapshot.preference === "string"
-						? snapshot.preference
-						: preferenceOf();
+				// Translate, never mirror. 0.2.2 closed the preference to
+				// `light | dark | system` and keeps it in the user settings
+				// document, so its value is the shell's answer, not the user
+				// leaving our theme; mapping it decides our palette. The stored
+				// choice only records the skin that mapping produced, and a legacy
+				// native value left by an older build is overwritten for good.
 				const stored = readChosen();
-				if (effective.length > 0 && effective !== stored) {
-					const storedIsSkin = SKINS.some((skin) => skin.id === stored);
-					if (!storedIsSkin) {
-						persist({ chosen: effective });
-					} else if (effective === NATIVE_SKIN) {
-						// Reset signature — verify against the patch layer before
-						// fighting back, so a genuine native 默认 pick survives.
-						verifyResetThenAct(stored);
-					} else {
-						persist({ chosen: effective });
-					}
+				const known = stored === NATIVE_SKIN || SKINS.some((skin) => skin.id === stored);
+				if (!known) {
+					const want = desiredSkin();
+					if (want !== "") persist({ chosen: want });
 				}
+				if (assertSkin()) {
+					const want = desiredSkin();
+					if (want !== "") persist({ chosen: want });
+				}
+				if (isOursActive()) writeLayerPreference(desiredSkin());
 				scheduleReport();
 			});
 
@@ -1704,10 +1806,15 @@ window.__ModuleLoader__.load({
 								setTheme: (id) => {
 									persist({ chosen: id });
 									writeLayerPreference(id);
-									try {
-										ctx.theme.setTheme(id);
-									} catch {
-										// runtime not ready — the choice is stored anyway
+									if (id === NATIVE_SKIN) {
+										// 默认: hand the palette back to the shell
+										setNativePreference("system");
+									} else {
+										try {
+											ctx.theme.setTheme(id);
+										} catch {
+											// runtime not ready — the choice is stored anyway
+										}
 									}
 									sync();
 									syncRow((revision += 1));
@@ -1730,31 +1837,33 @@ window.__ModuleLoader__.load({
 				)
 			);
 
+			/** Push the desired skin onto the runtime; true when it had to change. */
+			const assertSkin = () => {
+				const want = desiredSkin();
+				if (want === "" || preferenceOf() === want) return false;
+				try {
+					ctx.theme.setTheme(want);
+					return true;
+				} catch {
+					return false;
+				}
+			};
+
 			/**
-			 * Boot: honour the stored choice, else fall back to the default skin.
+			 * Boot: push whichever of our skins the shell's appearance resolves to.
 			 *
-			 * Only ids we know (our two skins, or the `system` sentinel) are pushed
-			 * onto the runtime here: a stored third-party id means the user picked
-			 * another theme through the shell's own UI, which we mirror but must
-			 * never override — the patch layer already carries that preference and
-			 * the runtime replays it on its own.
+			 * 0.2.2 enumerates the preference (`light | dark | system`) and keeps
+			 * it in the user settings document, so our own id cannot survive a
+			 * restart there: `setTheme(<registered id>)` is honoured live but
+			 * never written back. The shell's appearance control is therefore the
+			 * durable store, and this pass translates it instead of replaying a
+			 * value the runtime has already discarded.
 			 */
 			const applyChosen = () => {
-				const chosen = readChosen();
-				try {
-					if (SKINS.some((skin) => skin.id === chosen) || chosen === NATIVE_SKIN) {
-						if (preferenceOf() !== chosen) ctx.theme.setTheme(chosen);
-						// The runtime may still be replaying the patch layer; make sure
-						// the layer agrees with what we are about to assert.
-						writeLayerPreference(chosen);
-					} else if (typeof chosen === "string" && chosen.length > 0) {
-						// Native or third-party theme chosen elsewhere — leave it alone.
-					} else if (!isOursActive()) {
-						ctx.theme.setTheme(DEFAULT_SKIN);
-					}
-				} catch {
-					// runtime not ready — the second pass retries
-				}
+				const want = desiredSkin();
+				if (want === "") return;
+				assertSkin();
+				writeLayerPreference(want);
 			};
 
 			applyChosen();
@@ -1775,39 +1884,29 @@ window.__ModuleLoader__.load({
 
 			/**
 			 * The heal: the actual recovery work behind the recovery net's
-			 * triggers (see recoveryProbe) and the reset verifier.
+			 * triggers (see recoveryProbe).
 			 *
-			 * The durable fix lives in the profile patch layer (see
-			 * writeLayerPreference): the composed tree replays it on every
-			 * re-initialization, so switching the model or the reasoning effort
-			 * no longer drops the theme across restarts. Live, however, the
-			 * shell still resets its in-memory preference on rebuilds without
-			 * re-reading the layer — the net catches those, and this worker
-			 * re-asserts. `healsCount` counts how often it had to fire; it
-			 * stays 0 in a healthy shell, and any fighting with the shell is
-			 * visible there.
+			 * The shell resets its in-memory preference on rebuilds without
+			 * re-reading anything, and 0.2.2 cannot persist a third-party id at
+			 * all — so the wanted skin is recomputed from the shell's own
+			 * appearance every time and re-asserted whenever it diverges. `heals`
+			 * counts how often it had to fire; it stays 0 in a healthy shell, and
+			 * any fighting with the shell is visible there.
 			 */
 			const heal = () => {
 				if (disposed) return;
 				try {
-					const chosen = readChosen();
-					if (!SKINS.some((skin) => skin.id === chosen)) return;
-					const preference = preferenceOf();
+					const want = desiredSkin();
+					if (want === "") return;
 					const surfaces = readComputedSurfaces();
-					const runtimeLost = preference !== chosen || surfaces.bgBase === "";
-					const chromeWanted = preference === chosen && readAcrylic();
+					const runtimeLost = preferenceOf() !== want || surfaces.bgBase === "";
+					const chromeWanted = preferenceOf() === want && readAcrylic();
 					const chromeLost = chromeWanted && !isChromeMounted();
 					if (!runtimeLost && !chromeLost) return;
 					healsCount += 1;
 					if (runtimeLost) {
-						try {
-							ctx.theme.setTheme(chosen);
-						} catch {
-							// runtime not ready — the next trigger retries
-						}
-						// Reinforce the layer in case the shell persisted its
-						// own reset value over ours.
-						writeLayerPreference(chosen);
+						assertSkin();
+						writeLayerPreference(want);
 					}
 					sync();
 					syncRow((revision += 1));
